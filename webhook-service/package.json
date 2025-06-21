@@ -1,0 +1,19 @@
+{
+  "name": "gemini-salon-webhook",
+  "version": "1.0.0",
+  "description": "WhatsApp webhook handler for Gemini Salon AI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "keywords": ["whatsapp", "webhook", "gemini-salon"],
+  "author": "Gemini Salon AI",
+  "license": "MIT"
+}
