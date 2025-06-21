@@ -1,0 +1,428 @@
+{
+  "name": "Review Request Trigger Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "review-trigger",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "POS Service Completed Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        200
+      ],
+      "webhookId": "review-trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.event_type }}",
+              "rightValue": "service_completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition2", 
+              "leftValue": "={{ $json.customer_phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-webhook-data",
+      "name": "Validate Service Completion",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        300,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and format customer data for review request\nconst webhookData = $input.item.json;\n\n// Calculate optimal call time (24-48 hours after service)\nconst serviceDate = new Date(webhookData.service_date || webhookData.completed_at);\nconst callDelay = webhookData.review_delay_hours || 24; // Default 24 hours\nconst scheduledCallTime = new Date(serviceDate.getTime() + (callDelay * 60 * 60 * 1000));\n\n// Format customer phone number\nlet customerPhone = webhookData.customer_phone || webhookData.phone_number;\nif (customerPhone && !customerPhone.startsWith('+')) {\n  // Assume Dutch number if no country code\n  customerPhone = '+31' + customerPhone.replace(/^0/, '');\n}\n\n// Extract service information\nconst serviceType = webhookData.service_type || \n                   webhookData.treatment_type || \n                   webhookData.service_name || \n                   'behandeling';\n\n// Prepare review request payload\nconst reviewRequestData = {\n  salon_id: webhookData.salon_id,\n  customer_phone: customerPhone,\n  customer_name: webhookData.customer_name || webhookData.first_name,\n  customer_id: webhookData.customer_id || null,\n  service_type: serviceType,\n  service_date: webhookData.service_date || webhookData.completed_at,\n  language: webhookData.customer_language || null, // Will be auto-detected if null\n  \n  // Metadata for tracking\n  pos_booking_id: webhookData.booking_id || webhookData.appointment_id,\n  pos_system: webhookData.pos_system || 'unknown',\n  triggered_at: new Date().toISOString(),\n  scheduled_for: scheduledCallTime.toISOString()\n};\n\n// Validation checks\nif (!reviewRequestData.salon_id) {\n  throw new Error('Missing salon_id in webhook data');\n}\n\nif (!reviewRequestData.customer_phone) {\n  throw new Error('Missing customer phone number in webhook data');\n}\n\nreturn {\n  review_request: reviewRequestData,\n  webhook_source: webhookData,\n  should_delay_call: callDelay > 1, // If delay > 1 hour, schedule for later\n  immediate_call: callDelay <= 1     // If delay <= 1 hour, call immediately\n};"
+      },
+      "id": "format-review-data",
+      "name": "Format Review Request Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.immediate_call }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-timing",
+      "name": "Immediate Call?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        700,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VOICE_GATEWAY_URL }}/api/v1/calls/review-request",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.SERVICE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.review_request) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "call-review-request-immediate",
+      "name": "Call Review Request (Immediate)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "={{ $json.review_request.scheduled_for }}"
+            }
+          ]
+        }
+      },
+      "id": "schedule-delayed-call",
+      "name": "Schedule Delayed Call",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        900,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VOICE_GATEWAY_URL }}/api/v1/calls/review-request",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type", 
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.SERVICE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json", 
+        "jsonBody": "={{ JSON.stringify($('Format Review Request Data').item.json.review_request) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "call-review-request-scheduled",
+      "name": "Call Review Request (Scheduled)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1100,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.SUPABASE_DATABASE_ID }}",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "voice_agent_analytics",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "salon_id": "={{ $('Format Review Request Data').item.json.review_request.salon_id }}",
+            "date_period": "={{ new Date().toISOString().split('T')[0] }}",
+            "period_type": "daily",
+            "review_calls": 1,
+            "total_calls": 1,
+            "outbound_calls": 1
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "upsert": true
+        }
+      },
+      "id": "update-analytics",
+      "name": "Update Analytics",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.SUPABASE_DATABASE_ID }}",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "call_logs",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "salon_id": "={{ $('POS Service Completed Webhook').item.json.salon_id }}",
+            "phone_number": "={{ $('POS Service Completed Webhook').item.json.customer_phone }}",
+            "direction": "outbound",
+            "call_status": "webhook_validation_failed",
+            "campaign_type": "review_request",
+            "summary": "Review request blocked: invalid webhook data or missing required fields",
+            "conversation_context": "={{ JSON.stringify({ 'webhook_data': $('POS Service Completed Webhook').item.json, 'validation_error': 'Missing event_type=service_completed or customer_phone' }) }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "log-validation-error",
+      "name": "Log Validation Error",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        300,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"event_processed\": \"review_request_trigger\",\n  \"salon_id\": \"{{ $('Format Review Request Data').item.json.review_request.salon_id }}\",\n  \"customer_phone\": \"{{ $('Format Review Request Data').item.json.review_request.customer_phone }}\",\n  \"call_scheduled\": {{ $('Format Review Request Data').item.json.should_delay_call }},\n  \"immediate_call\": {{ $('Format Review Request Data').item.json.immediate_call }},\n  \"service_type\": \"{{ $('Format Review Request Data').item.json.review_request.service_type }}\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "webhook-response-success",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"error\": \"Invalid webhook data\",\n  \"required_fields\": [\"event_type\", \"customer_phone\", \"salon_id\"],\n  \"event_type_required\": \"service_completed\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "webhook-response-error",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        500,
+        350
+      ]
+    }
+  ],
+  "connections": {
+    "POS Service Completed Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Service Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Service Completion": {
+      "main": [
+        [
+          {
+            "node": "Format Review Request Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Review Request Data": {
+      "main": [
+        [
+          {
+            "node": "Immediate Call?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Immediate Call?": {
+      "main": [
+        [
+          {
+            "node": "Call Review Request (Immediate)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Schedule Delayed Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Review Request (Immediate)": {
+      "main": [
+        [
+          {
+            "node": "Update Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Delayed Call": {
+      "main": [
+        [
+          {
+            "node": "Call Review Request (Scheduled)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Review Request (Scheduled)": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Analytics": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Validation Error": {
+      "main": [
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-06-18T10:00:00.000Z",
+      "updatedAt": "2024-06-18T10:00:00.000Z",
+      "id": "voice-agent",
+      "name": "voice-agent"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2024-06-18T10:00:00.000Z",
+  "versionId": "v1"
+}

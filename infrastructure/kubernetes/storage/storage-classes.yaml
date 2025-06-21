@@ -1,0 +1,237 @@
+# Premium Storage Classes for Different Workloads
+# Optimized for voice-first SaaS performance requirements
+
+---
+# High-Performance SSD for Voice Gateway (low latency required)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: premium-ssd
+  labels:
+    app: gemini-salon
+    component: storage
+    performance-tier: premium
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+    description: "Premium SSD for voice processing workloads"
+provisioner: kubernetes.io/aws-ebs  # Adjust for your cloud provider
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  fsType: ext4
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Standard SSD for General Application Data
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard-ssd
+  labels:
+    app: gemini-salon
+    component: storage
+    performance-tier: standard
+  annotations:
+    description: "Standard SSD for general application workloads"
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+  fsType: ext4
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Backup Storage for Long-term Retention
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: backup-storage
+  labels:
+    app: gemini-salon
+    component: storage
+    performance-tier: backup
+  annotations:
+    description: "Cost-optimized storage for backups and archives"
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: sc1  # Cold HDD for backups
+  fsType: ext4
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Redis Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: redis
+    data-classification: personal-data
+  annotations:
+    description: "Redis persistent storage for session and cache data"
+    backup-policy: "daily"
+    retention-period: "30d"
+    gdpr-compliant: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 20Gi  # 20GB for Redis cache
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: redis
+
+---
+# n8n Workflows Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-workflows-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: n8n
+    data-classification: business-data
+  annotations:
+    description: "n8n workflow definitions and execution data"
+    backup-policy: "daily"
+    retention-period: "365d"
+    business-critical: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 10Gi  # 10GB for n8n workflows
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: n8n
+
+---
+# Monitoring Data Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: monitoring
+    data-classification: operational-data
+  annotations:
+    description: "Prometheus metrics storage for performance monitoring"
+    backup-policy: "weekly"
+    retention-period: "90d"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 50Gi  # 50GB for metrics (premium monitoring)
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: monitoring
+
+---
+# Log Storage Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logs-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: logging
+    data-classification: audit-data
+  annotations:
+    description: "Application and audit logs storage"
+    backup-policy: "daily"
+    retention-period: "365d"
+    gdpr-compliant: "true"
+    audit-required: "true"
+spec:
+  accessModes:
+    - ReadWriteMany  # Multiple pods need access to logs
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 100Gi  # 100GB for comprehensive logging
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: logging
+
+---
+# Backup Storage Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup
+    data-classification: backup-data
+  annotations:
+    description: "Local backup storage before offsite replication"
+    backup-policy: "continuous"
+    retention-period: "30d"
+    encryption-required: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: backup-storage
+  resources:
+    requests:
+      storage: 200Gi  # 200GB for local backups
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: backup
+
+---
+# Voice Recordings Temporary Storage (GDPR-compliant)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: voice-temp-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-storage
+    data-classification: personal-data
+  annotations:
+    description: "Temporary storage for voice recordings processing"
+    backup-policy: "none"  # Temporary data, not backed up
+    retention-period: "24h"  # Auto-delete after 24 hours
+    gdpr-compliant: "true"
+    auto-cleanup: "true"
+spec:
+  accessModes:
+    - ReadWriteMany  # Multiple voice gateway pods need access
+  storageClassName: premium-ssd  # High performance for real-time processing
+  resources:
+    requests:
+      storage: 50Gi  # 50GB for temporary voice files
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: voice-storage

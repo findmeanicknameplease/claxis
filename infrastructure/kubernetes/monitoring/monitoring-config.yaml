@@ -1,0 +1,378 @@
+# Prometheus Alerting Rules - Premium SLA & Business Metrics
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: prometheus-rules
+data:
+  voice-service-sla.yml: |
+    groups:
+    - name: voice-service-sla
+      interval: 30s
+      rules:
+      # SLA Monitoring - 99.5% Uptime Target
+      - alert: VoiceServiceDown
+        expr: up{job="voice-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: voice-gateway
+          tier: premium
+        annotations:
+          summary: "Voice Gateway Service is down"
+          description: "Voice Gateway service {{ $labels.instance }} has been down for more than 1 minute. This affects premium voice functionality."
+          runbook_url: "https://docs.geminisalon.ai/runbooks/voice-service-down"
+          
+      # Response Time SLA - <2s Target
+      - alert: VoiceResponseTimeSLA
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="voice-gateway"}[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: voice-gateway
+          sla: response-time
+        annotations:
+          summary: "Voice service response time SLA breach"
+          description: "95th percentile response time is {{ $value }}s, exceeding 2s SLA target"
+          
+      # High Error Rate
+      - alert: VoiceServiceHighErrorRate
+        expr: rate(http_requests_total{job="voice-gateway",status=~"5.."}[5m]) / rate(http_requests_total{job="voice-gateway"}[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          service: voice-gateway
+        annotations:
+          summary: "High error rate in voice service"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          
+      # WebSocket Connection Issues
+      - alert: WebSocketConnectionDrop
+        expr: rate(websocket_connections_dropped_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          service: voice-gateway
+          type: websocket
+        annotations:
+          summary: "High WebSocket connection drop rate"
+          description: "WebSocket connections are dropping at {{ $value }} per second"
+
+  business-metrics.yml: |
+    groups:
+    - name: business-metrics
+      interval: 60s
+      rules:
+      # Revenue Impact Alerts
+      - alert: CallConversionRateDrop
+        expr: (rate(successful_bookings_total[1h]) / rate(voice_calls_total[1h])) < 0.15
+        for: 10m
+        labels:
+          severity: warning
+          impact: revenue
+          tier: business
+        annotations:
+          summary: "Call conversion rate below target"
+          description: "Conversion rate dropped to {{ $value | humanizePercentage }}, below 15% target"
+          
+      # Premium Feature Usage
+      - alert: VoiceAgentUtilizationLow
+        expr: rate(voice_agent_interactions_total[1h]) < 10
+        for: 30m
+        labels:
+          severity: info
+          feature: voice-agent
+          tier: premium
+        annotations:
+          summary: "Low voice agent utilization"
+          description: "Voice agent interactions are below expected usage levels"
+          
+      # Enterprise Customer Health
+      - alert: EnterpriseSalonConnectionIssues
+        expr: increase(salon_connection_failures_total{tier="enterprise"}[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          tier: enterprise
+          impact: customer-satisfaction
+        annotations:
+          summary: "Enterprise salon experiencing connection issues"
+          description: "Salon {{ $labels.salon_id }} has {{ $value }} connection failures in the last hour"
+
+  infrastructure-alerts.yml: |
+    groups:
+    - name: infrastructure-alerts
+      interval: 30s
+      rules:
+      # Resource Utilization
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          type: resource
+        annotations:
+          summary: "High CPU usage detected"
+          description: "Container {{ $labels.name }} CPU usage is {{ $value }}%"
+          
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          type: resource
+        annotations:
+          summary: "High memory usage detected"
+          description: "Container {{ $labels.name }} memory usage is {{ $value }}%"
+          
+      # Storage Alerts
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 15
+        for: 2m
+        labels:
+          severity: warning
+          type: storage
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is {{ $value }}% available on {{ $labels.device }}"
+          
+      # Database Connection Pool
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: db_connection_pool_active / db_connection_pool_max > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          type: database
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "Connection pool utilization is {{ $value | humanizePercentage }}"
+
+---
+# AlertManager Configuration - Premium Alerting Channels
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: alertmanager
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'localhost:587'
+      smtp_from: 'alerts@geminisalon.ai'
+      slack_api_url: 'SLACK_WEBHOOK_URL_PLACEHOLDER'
+      
+    templates:
+    - '/etc/alertmanager/templates/*.tmpl'
+    
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'default'
+      routes:
+      # Critical alerts - immediate notification
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+        group_wait: 0s
+        repeat_interval: 5m
+        
+      # Business impact alerts
+      - match:
+          impact: revenue
+        receiver: 'business-alerts'
+        group_wait: 30s
+        repeat_interval: 1h
+        
+      # Enterprise customer alerts
+      - match:
+          tier: enterprise
+        receiver: 'enterprise-alerts'
+        group_wait: 10s
+        repeat_interval: 30m
+        
+      # Voice service specific
+      - match:
+          service: voice-gateway
+        receiver: 'voice-service-alerts'
+        group_wait: 15s
+        repeat_interval: 15m
+    
+    inhibit_rules:
+    - source_match:
+        severity: 'critical'
+      target_match:
+        severity: 'warning'
+      equal: ['alertname', 'cluster', 'service']
+    
+    receivers:
+    - name: 'default'
+      slack_configs:
+      - channel: '#alerts-general'
+        color: 'warning'
+        title: 'Gemini Salon AI Alert'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        
+    - name: 'critical-alerts'
+      slack_configs:
+      - channel: '#alerts-critical'
+        color: 'danger'
+        title: '🚨 CRITICAL: Gemini Salon AI'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Service:* {{ .Labels.service }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+      pagerduty_configs:
+      - routing_key: 'PAGERDUTY_KEY_PLACEHOLDER'
+        description: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        
+    - name: 'business-alerts'
+      slack_configs:
+      - channel: '#alerts-business'
+        color: 'warning'
+        title: '💰 Business Impact Alert'
+        text: |
+          {{ range .Alerts }}
+          *Impact:* {{ .Annotations.summary }}
+          *Details:* {{ .Annotations.description }}
+          *Tier:* {{ .Labels.tier }}
+          {{ end }}
+          
+    - name: 'enterprise-alerts'
+      slack_configs:
+      - channel: '#alerts-enterprise'
+        color: '#ff9900'
+        title: '🏢 Enterprise Customer Alert'
+        text: |
+          {{ range .Alerts }}
+          *Customer Impact:* {{ .Annotations.summary }}
+          *Details:* {{ .Annotations.description }}
+          *Salon:* {{ .Labels.salon_id }}
+          {{ end }}
+      webhook_configs:
+      - url: 'https://api.geminisalon.ai/alerts/enterprise'
+        send_resolved: true
+        
+    - name: 'voice-service-alerts'
+      slack_configs:
+      - channel: '#alerts-voice'
+        color: '#00aaff'
+        title: '🎙️ Voice Service Alert'
+        text: |
+          {{ range .Alerts }}
+          *Voice Service:* {{ .Annotations.summary }}
+          *Details:* {{ .Annotations.description }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+
+---
+# Grafana Data Sources Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: grafana
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+    # Prometheus - Main metrics source
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus-service:9090
+      isDefault: true
+      editable: false
+      jsonData:
+        httpMethod: POST
+        timeInterval: "15s"
+        
+    # PostgreSQL - Business analytics
+    - name: Business Analytics
+      type: postgres
+      access: proxy
+      url: supabase-host:5432
+      database: gemini_salon_analytics
+      user: grafana_readonly
+      secureJsonData:
+        password: POSTGRES_PASSWORD_PLACEHOLDER
+      jsonData:
+        sslmode: require
+        maxOpenConns: 10
+        maxIdleConns: 2
+        connMaxLifetime: 14400
+        
+    # AlertManager - Alert management
+    - name: AlertManager
+      type: camptocamp-prometheus-alertmanager-datasource
+      access: proxy
+      url: http://alertmanager-service:9093
+      editable: false
+
+---
+# Grafana Dashboards Provisioning
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: grafana
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: 'Gemini Salon AI'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards
+        
+    - name: 'business'
+      orgId: 1
+      folder: 'Business Intelligence'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 30
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards/business
+        
+    - name: 'voice'
+      orgId: 1
+      folder: 'Voice Services'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 15
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards/voice
+        
+    - name: 'infrastructure'
+      orgId: 1
+      folder: 'Infrastructure'
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 60
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards/infrastructure

@@ -1,0 +1,167 @@
+# Docker Compose for Integration Testing
+# Phase 1D: Testing & Validation
+
+version: '3.8'
+
+services:
+  # Test Database
+  postgres-test:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: gemini_salon_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d gemini_salon_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Voice Gateway Service
+  voice-gateway:
+    build: 
+      context: ./apps/voice-gateway-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=test
+      - PORT=3001
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/gemini_salon_test
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - ELEVENLABS_AGENT_ID=${ELEVENLABS_AGENT_ID}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    volumes:
+      - ./apps/voice-gateway-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Notifier Service
+  notifier:
+    build:
+      context: ./services/notifier
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=test
+      - NOTIFIER_PORT=3001
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/gemini_salon_test
+      - JWT_SECRET=test-jwt-secret-key-for-integration-testing
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    volumes:
+      - ./services/notifier:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # n8n Bridge Service
+  n8n-bridge:
+    build:
+      context: ./services/n8n-bridge
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=test
+      - N8N_BRIDGE_PORT=3002
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/gemini_salon_test
+      - N8N_WEBHOOK_URL=http://mock-n8n:5678/webhook/salon-events
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    volumes:
+      - ./services/n8n-bridge:/app
+      - /app/node_modules
+      - ./services/n8n-bridge/logs:/app/logs
+    command: npm run dev
+
+  # Mock n8n Service for Testing
+  mock-n8n:
+    image: node:18-alpine
+    working_dir: /app
+    environment:
+      - NODE_ENV=test
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./tests/mocks/n8n:/app
+    command: |
+      sh -c "
+        npm init -y &&
+        npm install express &&
+        node server.js
+      "
+
+  # Frontend (for BFF API testing)
+  frontend:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=test
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=test-nextauth-secret-key
+      - DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/gemini_salon_test
+      - NOTIFIER_URL=ws://notifier:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  # Integration Test Runner
+  integration-tests:
+    image: node:18
+    working_dir: /app
+    environment:
+      - NODE_ENV=test
+      - TEST_DATABASE_URL=postgresql://test_user:test_password@postgres-test:5432/gemini_salon_test
+      - JWT_SECRET=test-jwt-secret-key-for-integration-testing
+      - VOICE_GATEWAY_URL=http://voice-gateway:3001
+      - NOTIFIER_URL=ws://notifier:3001
+      - N8N_BRIDGE_URL=http://n8n-bridge:3002
+      - FRONTEND_URL=http://frontend:3000
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      voice-gateway:
+        condition: service_started
+      notifier:
+        condition: service_started
+      n8n-bridge:
+        condition: service_started
+      frontend:
+        condition: service_started
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: |
+      sh -c "
+        npm install --prefix tests/integration &&
+        npm test --prefix tests/integration
+      "
+    profiles:
+      - test
+
+volumes:
+  postgres_test_data:
+
+networks:
+  default:
+    name: gemini-salon-integration

@@ -1,0 +1,29 @@
+I've analyzed the 48 test failures in our enterprise n8n custom nodes. The issues fall into clear patterns:
+
+**Problem Categories Identified:**
+1. **Output Routing Issues**: Tests expect results in specific outputs but nodes route to different outputs
+2. **Mock Data Mismatches**: Tests expect specific response formats but actual implementation returns different structure  
+3. **Parameter Validation Failures**: Some tests use invalid salon IDs that fail validation
+4. **String Matching Issues**: Tests expect specific text patterns but implementation uses different wording
+
+**Specific Examples:**
+- ServiceWindow tests expect "High confidence optimization" but get "Safe to delay response by 40 minutes"
+- SalonContext tests fail on UUID validation for salon IDs like "invalid-salon-id"
+- AIOrchestrator tests expect results in main output but they're routed to specific model outputs
+- Some tests expect arrays to have length 1 but get length 0 (wrong output routing)
+
+**My Analysis:**
+The core issue is that we successfully fixed the node architecture for multiple outputs, but the tests were written for the old single-output pattern. We need to:
+
+1. **Update test expectations** to match the new multiple output routing logic
+2. **Fix mock data** to align with actual implementation responses  
+3. **Use proper UUIDs** in test cases instead of invalid strings
+4. **Align string expectations** with actual business logic responses
+
+**Strategic Questions:**
+1. Should I update the tests to match the implementation, or adjust implementation to match tests?
+2. For output routing - the nodes now intelligently route based on business logic. Should tests verify this routing or expect specific outputs?
+3. For enterprise-grade quality - should I prioritize test maintainability or strict business logic adherence?
+4. What's the most efficient approach to fix 48 tests without creating technical debt?
+
+**Context**: This is for a premium European SaaS platform where code quality and maintainability are critical. We need production-ready, future-proof solutions.

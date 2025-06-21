@@ -1,0 +1,138 @@
+{
+  "name": "My workflow 12",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -40
+      ],
+      "id": "62270a0f-ee7a-4df2-a223-d00d56b339b0",
+      "name": "WhatsApp Trigger",
+      "webhookId": "ee611380-be67-4f41-9446-7c1bfb1d2665",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "j9bxi5ucWY086HlD",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.messages[0].text }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -240,
+        -40
+      ],
+      "id": "4512fbef-9a0b-486d-b097-ff2e9fa00c6d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -260,
+        160
+      ],
+      "id": "bce63984-e18e-4778-b878-02e6c202c998",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "GSjmlmZx6cYKtIHa",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('WhatsApp Trigger').item.json.metadata.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.contacts[0].wa_id }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        120,
+        -40
+      ],
+      "id": "bf8b0d1f-3306-47c0-9b9c-05c436a202f8",
+      "name": "WhatsApp Business Cloud",
+      "webhookId": "9aaef09b-ff13-4da7-9582-e753ddbef968",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "8OLEKH75ZbgNTvEF",
+          "name": "WhatsApp account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Business Cloud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f47420ff-a8ff-4254-9e77-f90360897028",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "80788a7d2610557c6112df4d83c2d1361d53071681f81c26d3bd0af9fd241654"
+  },
+  "id": "OeNEX1vLjoRTf7gC",
+  "tags": []
+}

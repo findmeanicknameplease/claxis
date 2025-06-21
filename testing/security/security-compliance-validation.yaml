@@ -1,0 +1,1293 @@
+# Security and Compliance Validation Suite for Phase 3C
+# Comprehensive security testing and GDPR compliance validation
+
+---
+# Security Penetration Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: security-penetration-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-penetration-test
+    phase: "3c-security-penetration"
+    version: "1.0.0"
+  annotations:
+    description: "Enterprise security penetration testing for €299.99/month tier validation"
+    compliance-frameworks: "GDPR, SOC2, ISO27001"
+spec:
+  activeDeadlineSeconds: 7200  # 2 hours
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: security-penetration-test
+    spec:
+      serviceAccountName: security-testing-service-account
+      restartPolicy: Never
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: security-penetration-tester
+        image: gemini-salon/security-penetration-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Security Testing Configuration
+        - name: TEST_PHASE
+          value: "3C_SECURITY_COMPLIANCE_VALIDATION"
+        - name: TARGET_NAMESPACE
+          value: "gemini-salon"
+        - name: SECURITY_SCAN_DEPTH
+          value: "comprehensive"
+        - name: COMPLIANCE_FRAMEWORKS
+          value: "GDPR,SOC2,ISO27001"
+        
+        # Network Security Testing
+        - name: NETWORK_SECURITY_TESTING
+          value: "true"
+        - name: ZERO_TRUST_VALIDATION
+          value: "true"
+        - name: NETWORK_POLICY_TESTING
+          value: "true"
+        - name: LATERAL_MOVEMENT_TESTING
+          value: "true"
+        
+        # Application Security Testing
+        - name: API_SECURITY_TESTING
+          value: "true"
+        - name: AUTHENTICATION_TESTING
+          value: "true"
+        - name: AUTHORIZATION_TESTING
+          value: "true"
+        - name: INPUT_VALIDATION_TESTING
+          value: "true"
+        - name: INJECTION_ATTACK_TESTING
+          value: "true"
+        
+        # Voice Security Testing
+        - name: VOICE_SECURITY_TESTING
+          value: "true"
+        - name: VOICE_DATA_ENCRYPTION_TESTING
+          value: "true"
+        - name: VOICE_TRANSMISSION_SECURITY_TESTING
+          value: "true"
+        - name: VOICE_STORAGE_SECURITY_TESTING
+          value: "true"
+        
+        # Container Security Testing
+        - name: CONTAINER_SECURITY_TESTING
+          value: "true"
+        - name: IMAGE_VULNERABILITY_SCANNING
+          value: "true"
+        - name: RUNTIME_SECURITY_TESTING
+          value: "true"
+        - name: PRIVILEGE_ESCALATION_TESTING
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: security-testing-config
+        
+        env:
+        - name: SECURITY_SCANNER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: SECURITY_SCANNER_API_KEY
+        
+        command: ["/app/scripts/security-penetration-test.sh"]
+        args: ["--target", "gemini-salon", "--depth", "comprehensive"]
+        
+        volumeMounts:
+        - name: security-test-results
+          mountPath: /test-results
+        - name: security-tools
+          mountPath: /security-tools
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_ADMIN  # Required for network security testing
+      
+      volumes:
+      - name: security-test-results
+        persistentVolumeClaim:
+          claimName: security-test-results-pvc
+      - name: security-tools
+        configMap:
+          name: security-testing-tools
+
+---
+# GDPR Compliance Validation Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gdpr-compliance-validation
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-compliance-validation
+    phase: "3c-gdpr-validation"
+spec:
+  activeDeadlineSeconds: 3600  # 1 hour
+  template:
+    spec:
+      serviceAccountName: security-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: gdpr-compliance-validator
+        image: gemini-salon/gdpr-compliance-validator:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # GDPR Compliance Testing Configuration
+        - name: TEST_TYPE
+          value: "GDPR_COMPLIANCE_VALIDATION"
+        - name: DATA_RESIDENCY_REGION
+          value: "eu-central-1"  # Frankfurt requirement
+        - name: GDPR_FRAMEWORK_VERSION
+          value: "2018"
+        
+        # Data Processing Rights Testing
+        - name: RIGHT_TO_ACCESS_TESTING
+          value: "true"
+        - name: RIGHT_TO_RECTIFICATION_TESTING
+          value: "true"
+        - name: RIGHT_TO_ERASURE_TESTING
+          value: "true"
+        - name: RIGHT_TO_PORTABILITY_TESTING
+          value: "true"
+        - name: RIGHT_TO_OBJECT_TESTING
+          value: "true"
+        
+        # Data Protection Testing
+        - name: DATA_MINIMIZATION_TESTING
+          value: "true"
+        - name: PURPOSE_LIMITATION_TESTING
+          value: "true"
+        - name: STORAGE_LIMITATION_TESTING
+          value: "true"
+        - name: DATA_ACCURACY_TESTING
+          value: "true"
+        
+        # Consent Management Testing
+        - name: CONSENT_VALIDATION_TESTING
+          value: "true"
+        - name: CONSENT_WITHDRAWAL_TESTING
+          value: "true"
+        - name: GRANULAR_CONSENT_TESTING
+          value: "true"
+        
+        # Voice Data GDPR Testing
+        - name: VOICE_DATA_GDPR_TESTING
+          value: "true"
+        - name: VOICE_RECORDING_CONSENT_TESTING
+          value: "true"
+        - name: VOICE_DATA_RETENTION_TESTING
+          value: "true"
+        - name: VOICE_DATA_ANONYMIZATION_TESTING
+          value: "true"
+        
+        # Breach Detection and Notification Testing
+        - name: BREACH_DETECTION_TESTING
+          value: "true"
+        - name: BREACH_NOTIFICATION_TIMING_TESTING
+          value: "true"
+        - name: BREACH_IMPACT_ASSESSMENT_TESTING
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: gdpr-compliance-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: GDPR_COMPLIANCE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GDPR_COMPLIANCE_API_KEY
+        
+        command: ["/app/scripts/gdpr-compliance-validation.sh"]
+        
+        volumeMounts:
+        - name: gdpr-test-results
+          mountPath: /test-results
+        - name: gdpr-test-data
+          mountPath: /test-data
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: gdpr-test-results
+        persistentVolumeClaim:
+          claimName: gdpr-test-results-pvc
+      - name: gdpr-test-data
+        configMap:
+          name: gdpr-test-scenarios
+
+---
+# Data Encryption Validation Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: data-encryption-validation
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: data-encryption-validation
+    phase: "3c-encryption-validation"
+spec:
+  activeDeadlineSeconds: 2700  # 45 minutes
+  template:
+    spec:
+      serviceAccountName: security-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: encryption-validator
+        image: gemini-salon/encryption-validator:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Encryption Validation Configuration
+        - name: TEST_TYPE
+          value: "DATA_ENCRYPTION_VALIDATION"
+        - name: ENCRYPTION_STANDARDS_VALIDATION
+          value: "true"
+        
+        # Encryption at Rest Testing
+        - name: DATABASE_ENCRYPTION_TESTING
+          value: "true"
+        - name: FILE_STORAGE_ENCRYPTION_TESTING
+          value: "true"
+        - name: BACKUP_ENCRYPTION_TESTING
+          value: "true"
+        - name: CACHE_ENCRYPTION_TESTING
+          value: "true"
+        
+        # Encryption in Transit Testing
+        - name: TLS_VALIDATION_TESTING
+          value: "true"
+        - name: API_ENCRYPTION_TESTING
+          value: "true"
+        - name: WEBSOCKET_ENCRYPTION_TESTING
+          value: "true"
+        - name: VOICE_TRANSMISSION_ENCRYPTION_TESTING
+          value: "true"
+        
+        # Key Management Testing
+        - name: KEY_ROTATION_TESTING
+          value: "true"
+        - name: KEY_STORAGE_SECURITY_TESTING
+          value: "true"
+        - name: KEY_ACCESS_CONTROL_TESTING
+          value: "true"
+        
+        # Encryption Algorithm Testing
+        - name: REQUIRED_ENCRYPTION_ALGORITHMS
+          value: "AES-256-GCM,RSA-4096,ECDSA-P384"
+        - name: TLS_VERSION_MINIMUM
+          value: "1.3"
+        - name: CIPHER_SUITE_VALIDATION
+          value: "true"
+        
+        # Voice-Specific Encryption Testing
+        - name: VOICE_DATA_ENCRYPTION_TESTING
+          value: "true"
+        - name: REAL_TIME_VOICE_ENCRYPTION_TESTING
+          value: "true"
+        - name: VOICE_STORAGE_ENCRYPTION_TESTING
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: encryption-validation-config
+        
+        env:
+        - name: ENCRYPTION_TEST_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        command: ["/app/scripts/encryption-validation.sh"]
+        
+        volumeMounts:
+        - name: encryption-test-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: encryption-test-results
+        persistentVolumeClaim:
+          claimName: encryption-test-results-pvc
+
+---
+# Vulnerability Assessment Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vulnerability-assessment
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: vulnerability-assessment
+    phase: "3c-vulnerability-assessment"
+spec:
+  activeDeadlineSeconds: 5400  # 90 minutes
+  template:
+    spec:
+      serviceAccountName: security-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: vulnerability-scanner
+        image: gemini-salon/vulnerability-scanner:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 3000m
+            memory: 6Gi
+        
+        env:
+        # Vulnerability Assessment Configuration
+        - name: TEST_TYPE
+          value: "COMPREHENSIVE_VULNERABILITY_ASSESSMENT"
+        - name: SCAN_ENGINES
+          value: "trivy,clair,anchore,nessus"
+        - name: VULNERABILITY_DATABASES
+          value: "nvd,redhat,ubuntu,alpine,debian"
+        
+        # Container Vulnerability Scanning
+        - name: CONTAINER_IMAGE_SCANNING
+          value: "true"
+        - name: RUNTIME_VULNERABILITY_SCANNING
+          value: "true"
+        - name: BASE_IMAGE_SCANNING
+          value: "true"
+        - name: DEPENDENCY_SCANNING
+          value: "true"
+        
+        # Infrastructure Vulnerability Scanning
+        - name: KUBERNETES_CLUSTER_SCANNING
+          value: "true"
+        - name: NETWORK_VULNERABILITY_SCANNING
+          value: "true"
+        - name: SERVICE_CONFIGURATION_SCANNING
+          value: "true"
+        
+        # Application Vulnerability Scanning
+        - name: SOURCE_CODE_SCANNING
+          value: "true"
+        - name: API_VULNERABILITY_SCANNING
+          value: "true"
+        - name: WEB_APPLICATION_SCANNING
+          value: "true"
+        
+        # Voice-Specific Vulnerability Scanning
+        - name: VOICE_GATEWAY_SCANNING
+          value: "true"
+        - name: VOICE_PROCESSING_SCANNING
+          value: "true"
+        - name: VOICE_STORAGE_SCANNING
+          value: "true"
+        
+        # Severity Thresholds
+        - name: CRITICAL_VULNERABILITY_THRESHOLD
+          value: "0"      # No critical vulnerabilities allowed
+        - name: HIGH_VULNERABILITY_THRESHOLD
+          value: "5"      # Maximum 5 high-severity vulnerabilities
+        - name: MEDIUM_VULNERABILITY_THRESHOLD
+          value: "20"     # Maximum 20 medium-severity vulnerabilities
+        
+        envFrom:
+        - configMapRef:
+            name: vulnerability-assessment-config
+        
+        env:
+        - name: VULNERABILITY_SCANNER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: VULNERABILITY_SCANNER_API_KEY
+        
+        command: ["/app/scripts/vulnerability-assessment.sh"]
+        
+        volumeMounts:
+        - name: vulnerability-results
+          mountPath: /scan-results
+        - name: vulnerability-databases
+          mountPath: /vulnerability-databases
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: vulnerability-results
+        persistentVolumeClaim:
+          claimName: vulnerability-results-pvc
+      - name: vulnerability-databases
+        persistentVolumeClaim:
+          claimName: vulnerability-databases-pvc
+
+---
+# Compliance Audit Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: compliance-audit-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: compliance-audit-test
+    phase: "3c-compliance-audit"
+spec:
+  activeDeadlineSeconds: 2700  # 45 minutes
+  template:
+    spec:
+      serviceAccountName: security-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: compliance-auditor
+        image: gemini-salon/compliance-auditor:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Compliance Audit Configuration
+        - name: TEST_TYPE
+          value: "COMPLIANCE_AUDIT_VALIDATION"
+        - name: AUDIT_FRAMEWORKS
+          value: "SOC2,ISO27001,GDPR"
+        - name: AUDIT_SCOPE
+          value: "voice_agent_enterprise_system"
+        
+        # SOC 2 Compliance Testing
+        - name: SOC2_SECURITY_CONTROLS_TESTING
+          value: "true"
+        - name: SOC2_AVAILABILITY_TESTING
+          value: "true"
+        - name: SOC2_PROCESSING_INTEGRITY_TESTING
+          value: "true"
+        - name: SOC2_CONFIDENTIALITY_TESTING
+          value: "true"
+        - name: SOC2_PRIVACY_TESTING
+          value: "true"
+        
+        # ISO 27001 Compliance Testing
+        - name: ISO27001_ISMS_TESTING
+          value: "true"
+        - name: ISO27001_RISK_MANAGEMENT_TESTING
+          value: "true"
+        - name: ISO27001_SECURITY_CONTROLS_TESTING
+          value: "true"
+        - name: ISO27001_INCIDENT_MANAGEMENT_TESTING
+          value: "true"
+        
+        # Audit Log Testing
+        - name: AUDIT_LOG_COMPLETENESS_TESTING
+          value: "true"
+        - name: AUDIT_LOG_INTEGRITY_TESTING
+          value: "true"
+        - name: AUDIT_LOG_RETENTION_TESTING
+          value: "true"
+        - name: AUDIT_LOG_ACCESS_CONTROL_TESTING
+          value: "true"
+        
+        # Access Control Testing
+        - name: RBAC_COMPLIANCE_TESTING
+          value: "true"
+        - name: PRINCIPLE_OF_LEAST_PRIVILEGE_TESTING
+          value: "true"
+        - name: PRIVILEGED_ACCESS_MONITORING_TESTING
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: compliance-audit-config
+        
+        env:
+        - name: AUDIT_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        command: ["/app/scripts/compliance-audit-test.sh"]
+        
+        volumeMounts:
+        - name: compliance-audit-results
+          mountPath: /audit-results
+      
+      volumes:
+      - name: compliance-audit-results
+        persistentVolumeClaim:
+          claimName: compliance-audit-results-pvc
+
+---
+# Security Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-testing-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-testing
+data:
+  # Network Security Testing Configuration
+  NETWORK_SECURITY_TESTS: |
+    {
+      "zero_trust_validation": {
+        "default_deny_policy_test": true,
+        "explicit_allow_rules_test": true,
+        "micro_segmentation_test": true,
+        "lateral_movement_prevention_test": true
+      },
+      "network_policy_tests": [
+        {
+          "test_name": "deny_all_default_policy",
+          "expected_result": "all_traffic_blocked_by_default",
+          "validation_method": "attempt_unauthorized_connections"
+        },
+        {
+          "test_name": "voice_gateway_isolation",
+          "expected_result": "only_authorized_voice_traffic_allowed",
+          "validation_method": "test_service_connectivity"
+        },
+        {
+          "test_name": "database_access_restriction",
+          "expected_result": "only_application_pods_can_access_database",
+          "validation_method": "test_database_connectivity"
+        }
+      ]
+    }
+  
+  # Application Security Testing Configuration
+  APPLICATION_SECURITY_TESTS: |
+    {
+      "api_security_tests": [
+        {
+          "test_type": "authentication_bypass",
+          "target_endpoints": [
+            "/api/voice/initiate",
+            "/api/booking/create",
+            "/api/customer/profile"
+          ],
+          "expected_result": "authentication_required"
+        },
+        {
+          "test_type": "authorization_testing",
+          "scenarios": [
+            "cross_tenant_access_prevention",
+            "role_based_access_enforcement",
+            "resource_level_permissions"
+          ]
+        },
+        {
+          "test_type": "input_validation",
+          "attack_vectors": [
+            "sql_injection",
+            "xss_attacks",
+            "command_injection",
+            "path_traversal"
+          ]
+        }
+      ],
+      "voice_security_tests": [
+        {
+          "test_type": "voice_data_encryption",
+          "validation_points": [
+            "websocket_transmission_encryption",
+            "voice_storage_encryption",
+            "voice_processing_memory_protection"
+          ]
+        },
+        {
+          "test_type": "voice_access_control",
+          "scenarios": [
+            "unauthorized_voice_access_prevention",
+            "voice_session_hijacking_prevention",
+            "voice_data_leakage_prevention"
+          ]
+        }
+      ]
+    }
+  
+  # Container Security Testing Configuration
+  CONTAINER_SECURITY_TESTS: |
+    {
+      "image_security_tests": [
+        {
+          "test_type": "vulnerability_scanning",
+          "scan_targets": [
+            "voice-gateway-service",
+            "notifier-service", 
+            "n8n-bridge-service",
+            "business-metrics-exporter"
+          ],
+          "severity_thresholds": {
+            "critical": 0,
+            "high": 5,
+            "medium": 20,
+            "low": 100
+          }
+        },
+        {
+          "test_type": "configuration_security",
+          "validation_points": [
+            "non_root_user_execution",
+            "read_only_root_filesystem",
+            "dropped_capabilities",
+            "security_context_enforcement"
+          ]
+        }
+      ],
+      "runtime_security_tests": [
+        {
+          "test_type": "privilege_escalation_prevention",
+          "test_scenarios": [
+            "container_escape_attempts",
+            "privilege_escalation_attempts",
+            "unauthorized_system_calls"
+          ]
+        }
+      ]
+    }
+
+---
+# GDPR Compliance Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gdpr-compliance-config
+  namespace: gemini-salon
+data:
+  # GDPR Data Subject Rights Testing
+  GDPR_DATA_SUBJECT_RIGHTS_TESTS: |
+    {
+      "right_to_access": {
+        "test_scenarios": [
+          {
+            "scenario": "customer_data_access_request",
+            "test_data": "customer_profile_voice_data",
+            "expected_response_time_hours": 72,
+            "data_completeness_threshold": 100
+          }
+        ]
+      },
+      "right_to_rectification": {
+        "test_scenarios": [
+          {
+            "scenario": "customer_data_correction_request",
+            "test_data": "incorrect_customer_preferences",
+            "expected_correction_time_hours": 24,
+            "accuracy_validation": true
+          }
+        ]
+      },
+      "right_to_erasure": {
+        "test_scenarios": [
+          {
+            "scenario": "customer_account_deletion_request",
+            "test_data": "complete_customer_profile_voice_recordings",
+            "expected_deletion_time_hours": 48,
+            "deletion_verification": true,
+            "anonymization_validation": true
+          }
+        ]
+      },
+      "right_to_portability": {
+        "test_scenarios": [
+          {
+            "scenario": "customer_data_export_request",
+            "export_formats": ["json", "csv", "xml"],
+            "data_completeness_validation": true,
+            "export_time_threshold_hours": 24
+          }
+        ]
+      }
+    }
+  
+  # GDPR Voice Data Specific Testing
+  GDPR_VOICE_DATA_TESTS: |
+    {
+      "voice_recording_consent": {
+        "consent_collection_validation": true,
+        "consent_withdrawal_testing": true,
+        "granular_consent_options": [
+          "call_recording_consent",
+          "voice_analysis_consent", 
+          "voice_quality_improvement_consent"
+        ]
+      },
+      "voice_data_retention": {
+        "retention_periods": {
+          "voice_recordings": "30_days",
+          "voice_transcriptions": "90_days",
+          "voice_analytics": "365_days"
+        },
+        "automatic_deletion_validation": true,
+        "retention_justification_validation": true
+      },
+      "voice_data_anonymization": {
+        "voice_signature_removal": true,
+        "personal_identifier_removal": true,
+        "anonymization_effectiveness_threshold": 99.9
+      }
+    }
+  
+  # GDPR Breach Detection and Notification
+  GDPR_BREACH_MANAGEMENT: |
+    {
+      "breach_detection_tests": [
+        {
+          "breach_type": "unauthorized_voice_data_access",
+          "detection_time_threshold_minutes": 15,
+          "automated_response_validation": true
+        },
+        {
+          "breach_type": "data_export_unauthorized",
+          "detection_time_threshold_minutes": 5,
+          "impact_assessment_automation": true
+        }
+      ],
+      "breach_notification_tests": [
+        {
+          "notification_target": "supervisory_authority",
+          "notification_time_threshold_hours": 72,
+          "notification_completeness_validation": true
+        },
+        {
+          "notification_target": "affected_data_subjects",
+          "notification_time_threshold_hours": 96,
+          "notification_clarity_validation": true
+        }
+      ]
+    }
+
+---
+# Encryption Validation Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: encryption-validation-config
+  namespace: gemini-salon
+data:
+  # Encryption Standards Validation
+  ENCRYPTION_STANDARDS: |
+    {
+      "encryption_at_rest": {
+        "database_encryption": {
+          "algorithm": "AES-256-GCM",
+          "key_rotation_interval_days": 90,
+          "validation_tests": [
+            "encryption_verification",
+            "key_management_validation",
+            "data_integrity_validation"
+          ]
+        },
+        "file_storage_encryption": {
+          "algorithm": "AES-256-GCM",
+          "voice_recordings_encryption": true,
+          "backup_encryption": true
+        },
+        "cache_encryption": {
+          "redis_encryption": true,
+          "memory_encryption": true
+        }
+      },
+      "encryption_in_transit": {
+        "tls_configuration": {
+          "minimum_version": "1.3",
+          "cipher_suites": [
+            "TLS_AES_256_GCM_SHA384",
+            "TLS_CHACHA20_POLY1305_SHA256",
+            "TLS_AES_128_GCM_SHA256"
+          ],
+          "certificate_validation": true
+        },
+        "api_encryption": {
+          "https_enforcement": true,
+          "api_key_encryption": true,
+          "payload_encryption": true
+        },
+        "websocket_encryption": {
+          "wss_enforcement": true,
+          "voice_stream_encryption": true
+        }
+      }
+    }
+  
+  # Voice-Specific Encryption Testing
+  VOICE_ENCRYPTION_TESTS: |
+    {
+      "real_time_voice_encryption": {
+        "websocket_stream_encryption": {
+          "algorithm": "AES-256-GCM",
+          "key_exchange": "ECDHE",
+          "perfect_forward_secrecy": true
+        },
+        "voice_packet_encryption": {
+          "srtp_encryption": true,
+          "voice_quality_preservation": true
+        }
+      },
+      "voice_storage_encryption": {
+        "recording_encryption": {
+          "algorithm": "AES-256-GCM",
+          "individual_file_encryption": true,
+          "metadata_encryption": true
+        },
+        "transcription_encryption": {
+          "text_encryption": true,
+          "searchable_encryption": true
+        }
+      }
+    }
+
+---
+# Vulnerability Assessment Configuration  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vulnerability-assessment-config
+  namespace: gemini-salon
+data:
+  # Vulnerability Scanning Configuration
+  VULNERABILITY_SCANNING_CONFIG: |
+    {
+      "scan_targets": [
+        {
+          "target_type": "container_images",
+          "images": [
+            "gemini-salon/voice-gateway-service:latest",
+            "gemini-salon/notifier-service:latest",
+            "gemini-salon/n8n-bridge-service:latest",
+            "gemini-salon/business-metrics-exporter:latest"
+          ],
+          "scan_engines": ["trivy", "clair", "anchore"],
+          "scan_depth": "comprehensive"
+        },
+        {
+          "target_type": "kubernetes_cluster",
+          "components": [
+            "api_server",
+            "etcd",
+            "kubelet",
+            "kube_proxy",
+            "ingress_controller"
+          ],
+          "configuration_scanning": true
+        },
+        {
+          "target_type": "network_infrastructure", 
+          "scan_scope": [
+            "exposed_services",
+            "network_policies",
+            "ingress_configurations",
+            "tls_configurations"
+          ]
+        }
+      ],
+      "vulnerability_databases": [
+        "nvd_national_vulnerability_database",
+        "redhat_security_advisories",
+        "ubuntu_security_notices",
+        "alpine_security_database",
+        "debian_security_tracker"
+      ]
+    }
+  
+  # Severity Classification and Thresholds
+  VULNERABILITY_SEVERITY_CONFIG: |
+    {
+      "severity_classification": {
+        "critical": {
+          "cvss_score_range": "9.0-10.0",
+          "allowed_count": 0,
+          "remediation_time_hours": 24
+        },
+        "high": {
+          "cvss_score_range": "7.0-8.9",
+          "allowed_count": 5,
+          "remediation_time_hours": 72
+        },
+        "medium": {
+          "cvss_score_range": "4.0-6.9", 
+          "allowed_count": 20,
+          "remediation_time_days": 30
+        },
+        "low": {
+          "cvss_score_range": "0.1-3.9",
+          "allowed_count": 100,
+          "remediation_time_days": 90
+        }
+      },
+      "exemption_criteria": [
+        "not_applicable_to_environment",
+        "mitigated_by_network_controls",
+        "mitigated_by_application_controls",
+        "false_positive_confirmed"
+      ]
+    }
+
+---
+# Compliance Audit Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: compliance-audit-config
+  namespace: gemini-salon
+data:
+  # SOC 2 Compliance Testing
+  SOC2_COMPLIANCE_TESTS: |
+    {
+      "security_principle": {
+        "access_controls": {
+          "user_access_provisioning": true,
+          "user_access_modification": true,
+          "user_access_termination": true,
+          "privileged_access_controls": true
+        },
+        "logical_and_physical_access": {
+          "system_access_controls": true,
+          "data_transmission_controls": true,
+          "mobile_device_controls": true
+        },
+        "system_operations": {
+          "change_management": true,
+          "backup_and_recovery": true,
+          "system_monitoring": true
+        }
+      },
+      "availability_principle": {
+        "system_availability": {
+          "uptime_monitoring": true,
+          "capacity_planning": true,
+          "disaster_recovery": true
+        }
+      },
+      "processing_integrity_principle": {
+        "data_processing_controls": {
+          "input_validation": true,
+          "processing_accuracy": true,
+          "output_validation": true
+        }
+      }
+    }
+  
+  # ISO 27001 Compliance Testing
+  ISO27001_COMPLIANCE_TESTS: |
+    {
+      "information_security_management_system": {
+        "isms_scope_definition": true,
+        "information_security_policy": true,
+        "risk_management_process": true,
+        "security_controls_implementation": true
+      },
+      "security_controls_validation": [
+        {
+          "control_id": "A.9.1.1",
+          "control_name": "Access_control_policy",
+          "validation_method": "policy_review_and_testing"
+        },
+        {
+          "control_id": "A.10.1.1", 
+          "control_name": "Cryptographic_controls",
+          "validation_method": "encryption_implementation_testing"
+        },
+        {
+          "control_id": "A.12.1.1",
+          "control_name": "Documented_operating_procedures",
+          "validation_method": "procedure_documentation_review"
+        },
+        {
+          "control_id": "A.16.1.1",
+          "control_name": "Information_security_incident_management",
+          "validation_method": "incident_response_testing"
+        }
+      ]
+    }
+
+---
+# GDPR Test Scenarios
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gdpr-test-scenarios
+  namespace: gemini-salon
+data:
+  # Sample test data for GDPR validation
+  customer_data_scenarios.json: |
+    [
+      {
+        "scenario_id": "gdpr_access_request_001",
+        "customer_id": "test-customer-001",
+        "data_types": [
+          "personal_profile",
+          "voice_recordings",
+          "appointment_history",
+          "communication_logs"
+        ],
+        "expected_response_items": 15,
+        "expected_response_time_hours": 72
+      },
+      {
+        "scenario_id": "gdpr_erasure_request_001",
+        "customer_id": "test-customer-002", 
+        "data_types": [
+          "complete_profile",
+          "voice_data",
+          "analytics_data"
+        ],
+        "expected_deletion_verification": true,
+        "expected_anonymization": true
+      }
+    ]
+  
+  voice_data_scenarios.json: |
+    [
+      {
+        "scenario_id": "voice_consent_001",
+        "voice_recording_id": "voice-rec-001",
+        "consent_status": "explicit_consent_given",
+        "consent_timestamp": "2025-06-19T10:00:00Z",
+        "expected_processing_allowed": true
+      },
+      {
+        "scenario_id": "voice_withdrawal_001",
+        "voice_recording_id": "voice-rec-002",
+        "consent_withdrawal_timestamp": "2025-06-19T12:00:00Z",
+        "expected_processing_stopped": true,
+        "expected_data_deletion": true
+      }
+    ]
+
+---
+# Security Testing Tools Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-testing-tools
+  namespace: gemini-salon
+data:
+  # Security testing tool configurations
+  nmap_config.conf: |
+    # Network scanning configuration
+    scan_techniques="-sS -sU -sV -sC"
+    timing_template="-T4"
+    output_format="-oA"
+    host_discovery="-Pn"
+  
+  sqlmap_config.conf: |
+    # SQL injection testing configuration
+    risk_level="3"
+    level="5"
+    threads="10"
+    batch_mode="true"
+  
+  owasp_zap_config.conf: |
+    # OWASP ZAP configuration
+    attack_mode="active"
+    spider_enabled="true"
+    ajax_spider_enabled="true"
+    passive_scan_enabled="true"
+
+---
+# Storage for Security Test Results
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: security-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 15Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gdpr-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: encryption-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 3Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vulnerability-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vulnerability-databases-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: compliance-audit-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# RBAC for Security Testing
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: security-testing-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-testing
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: security-testing-cluster-role
+rules:
+# Allow reading all resources for security assessment
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "nodes", "namespaces", "secrets", "configmaps"]
+  verbs: ["get", "list", "watch"]
+# Allow reading deployments and security policies
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+# Allow reading network policies and security policies
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies", "ingresses"]
+  verbs: ["get", "list", "watch"]
+# Allow reading RBAC resources
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch"]
+# Allow reading security policies
+- apiGroups: ["policy"]
+  resources: ["podsecuritypolicies"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: security-testing-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: security-testing-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: security-testing-service-account
+  namespace: gemini-salon

@@ -1,0 +1,336 @@
+# Voice Gateway Service - Premium Voice Processing Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-gateway-deployment
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-gateway
+    tier: application
+    version: "1.0.0"
+  annotations:
+    description: "Voice Gateway Service - Real-time voice processing with WebSocket support"
+    deployment.kubernetes.io/revision: "1"
+    performance-tier: "premium"
+    sla-target: "99.5%"
+spec:
+  replicas: 3  # Minimum 3 replicas for high availability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: voice-gateway
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: voice-gateway
+        tier: application
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        ad.datadoghq.com/voice-gateway.check_names: '["http_check"]'
+        ad.datadoghq.com/voice-gateway.init_configs: '[{}]'
+        ad.datadoghq.com/voice-gateway.instances: '[{"name": "voice-gateway", "url": "http://%%host%%:8082/health"}]'
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      imagePullSecrets:
+      - name: regcred
+      
+      # Anti-affinity for high availability across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - voice-gateway
+              topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - compute-optimized  # Use compute-optimized nodes for voice processing
+      
+      # Security context for GDPR compliance
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containers:
+      - name: voice-gateway
+        image: gemini-salon/voice-gateway:1.0.0  # Replace with actual image
+        imagePullPolicy: Always
+        
+        # Resource allocation for premium performance
+        resources:
+          requests:
+            cpu: 500m      # 0.5 CPU cores baseline
+            memory: 1Gi    # 1GB RAM baseline
+            ephemeral-storage: 2Gi
+          limits:
+            cpu: 2000m     # 2 CPU cores max for voice processing
+            memory: 4Gi    # 4GB RAM max
+            ephemeral-storage: 5Gi
+        
+        # Environment configuration
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: WEBSOCKET_PORT
+          value: "8081"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: HEALTH_PORT
+          value: "8082"
+        
+        # Configuration from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: gemini-salon-config
+        
+        # Secrets injection
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: JWT_SECRET
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: TWILIO_ACCOUNT_SID
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: TWILIO_AUTH_TOKEN
+        - name: ELEVENLABS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ELEVENLABS_API_KEY
+        
+        # Container ports
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: websocket
+          containerPort: 8081
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        - name: health
+          containerPort: 8082
+          protocol: TCP
+        
+        # Health checks - Premium monitoring
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 2
+        
+        # Startup probe for faster deployment
+        startupProbe:
+          httpGet:
+            path: /health
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 15
+        
+        # Volume mounts for temporary voice storage
+        volumeMounts:
+        - name: voice-temp-storage
+          mountPath: /tmp/voice
+        - name: logs-storage
+          mountPath: /app/logs
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        # Lifecycle hooks for graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - |
+                echo "Graceful shutdown initiated..."
+                # Allow active voice calls to complete
+                sleep 30
+                echo "Graceful shutdown complete"
+      
+      # Volumes
+      volumes:
+      - name: voice-temp-storage
+        persistentVolumeClaim:
+          claimName: voice-temp-pvc
+      - name: logs-storage
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      
+      # DNS configuration for premium service discovery
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
+      
+      # Graceful termination
+      terminationGracePeriodSeconds: 60  # Allow voice calls to complete
+      
+      # Node selection for performance
+      nodeSelector:
+        performance-tier: "premium"
+      
+      # Tolerations for dedicated nodes
+      tolerations:
+      - key: "voice-processing"
+        operator: "Equal"
+        value: "dedicated"
+        effect: "NoSchedule"
+
+---
+# Horizontal Pod Autoscaler for Voice Gateway
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: voice-gateway-hpa
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-gateway
+    tier: autoscaling
+  annotations:
+    description: "Auto-scaling for Voice Gateway based on CPU, memory, and custom metrics"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: voice-gateway-deployment
+  minReplicas: 3   # Minimum for high availability
+  maxReplicas: 20  # Maximum for enterprise scale
+  targetCPUUtilizationPercentage: 70
+  
+  # Advanced metrics for voice workload optimization
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  
+  # Custom metrics for voice-specific scaling
+  - type: Pods
+    pods:
+      metric:
+        name: active_voice_calls
+      target:
+        type: AverageValue
+        averageValue: "50"  # Scale when average > 50 calls per pod
+  
+  - type: Pods
+    pods:
+      metric:
+        name: websocket_connections
+      target:
+        type: AverageValue
+        averageValue: "200"  # Scale when average > 200 connections per pod
+  
+  # Scaling behavior for premium responsiveness
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60   # Quick scale-up for voice spikes
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 3
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Slower scale-down to prevent churn
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+
+---
+# Pod Disruption Budget for High Availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: voice-gateway-pdb
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-gateway
+spec:
+  minAvailable: 2  # Always keep at least 2 pods running
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: voice-gateway

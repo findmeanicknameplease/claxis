@@ -1,0 +1,41 @@
+<svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="30" cy="30" r="28" fill="#8B5CF6" stroke="#6D28D9" stroke-width="2"/>
+  
+  <!-- Central AI Brain/Hub -->
+  <circle cx="30" cy="30" r="12" fill="white" stroke="#6D28D9" stroke-width="2"/>
+  
+  <!-- Neural Network Pattern Inside -->
+  <circle cx="26" cy="26" r="2" fill="#8B5CF6"/>
+  <circle cx="34" cy="26" r="2" fill="#8B5CF6"/>
+  <circle cx="30" cy="34" r="2" fill="#8B5CF6"/>
+  <line x1="26" y1="26" x2="30" y2="34" stroke="#8B5CF6" stroke-width="1"/>
+  <line x1="34" y1="26" x2="30" y2="34" stroke="#8B5CF6" stroke-width="1"/>
+  <line x1="26" y1="26" x2="34" y2="26" stroke="#8B5CF6" stroke-width="1"/>
+  
+  <!-- Model Connection Nodes -->
+  <!-- Gemini Flash (Top) -->
+  <circle cx="30" cy="8" r="6" fill="#4285F4" stroke="#1565C0" stroke-width="1"/>
+  <text x="30" y="13" text-anchor="middle" fill="white" font-size="8" font-weight="bold">G</text>
+  
+  <!-- DeepSeek (Bottom Left) -->
+  <circle cx="12" cy="45" r="6" fill="#FF6B35" stroke="#D84315" stroke-width="1"/>
+  <text x="12" y="50" text-anchor="middle" fill="white" font-size="8" font-weight="bold">D</text>
+  
+  <!-- ElevenLabs (Bottom Right) -->
+  <circle cx="48" cy="45" r="6" fill="#10B981" stroke="#047857" stroke-width="1"/>
+  <text x="48" y="50" text-anchor="middle" fill="white" font-size="8" font-weight="bold">E</text>
+  
+  <!-- Connection Lines -->
+  <line x1="30" y1="18" x2="30" y2="14" stroke="#6D28D9" stroke-width="2"/>
+  <line x1="21" y1="39" x2="18" y2="39" stroke="#6D28D9" stroke-width="2"/>
+  <line x1="39" y1="39" x2="42" y2="39" stroke="#6D28D9" stroke-width="2"/>
+  
+  <!-- AI Sparkle Effect -->
+  <g transform="translate(45, 15)">
+    <path d="M0 -3 L1 -1 L3 0 L1 1 L0 3 L-1 1 L-3 0 L-1 -1 Z" fill="#F59E0B"/>
+  </g>
+  <g transform="translate(15, 15)">
+    <path d="M0 -2 L0.5 -0.5 L2 0 L0.5 0.5 L0 2 L-0.5 0.5 L-2 0 L-0.5 -0.5 Z" fill="#F59E0B"/>
+  </g>
+</svg>

@@ -1,0 +1,1082 @@
+# Voice Agent Integration Testing Suite for Phase 3B
+# Comprehensive testing of enterprise voice capabilities and ROI validation
+
+---
+# Voice Agent End-to-End Integration Test
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: voice-agent-integration-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-agent-integration-test
+    phase: "3b-voice-agent-integration"
+    version: "1.0.0"
+  annotations:
+    description: "End-to-end voice agent testing for Enterprise tier validation"
+    business-value: "Validates €1,200+/month receptionist replacement ROI"
+spec:
+  parallelism: 3  # Test multiple scenarios in parallel
+  completions: 3
+  activeDeadlineSeconds: 5400  # 90 minutes
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: voice-agent-integration-test
+    spec:
+      serviceAccountName: voice-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: voice-agent-integration-tester
+        image: gemini-salon/voice-agent-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Voice Agent Integration Testing Configuration
+        - name: TEST_PHASE
+          value: "3B_VOICE_AGENT_INTEGRATION"
+        - name: VOICE_GATEWAY_URL
+          value: "ws://voice-gateway-service:8080"
+        - name: N8N_WEBHOOK_URL
+          value: "http://n8n-service:5678/webhook/voice-agent"
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: TWILIO_ACCOUNT_SID
+        
+        # Enterprise Voice Testing Parameters
+        - name: CONCURRENT_VOICE_SESSIONS
+          value: "100"    # 100 concurrent voice sessions
+        - name: TEST_CALL_DURATION_SECONDS
+          value: "300"    # 5-minute average call duration
+        - name: VOICE_QUALITY_THRESHOLD_MOS
+          value: "4.0"    # Minimum MOS score 4.0
+        - name: RESPONSE_LATENCY_THRESHOLD_MS
+          value: "150"    # <150ms voice response latency
+        
+        # Multilingual Testing
+        - name: TEST_LANGUAGES
+          value: "en,de,nl,fr"  # English, German, Dutch, French
+        - name: LANGUAGE_DETECTION_ACCURACY_THRESHOLD
+          value: "95"     # 95% language detection accuracy
+        - name: ACCENT_RECOGNITION_THRESHOLD
+          value: "90"     # 90% accent recognition accuracy
+        
+        # Business Logic Testing
+        - name: BOOKING_SUCCESS_RATE_THRESHOLD
+          value: "85"     # 85% successful booking completion
+        - name: APPOINTMENT_CONFLICT_RESOLUTION
+          value: "true"   # Test conflict resolution
+        - name: CUSTOMER_SATISFACTION_TARGET
+          value: "4.5"    # 4.5/5 customer satisfaction target
+        
+        # ROI Validation Testing
+        - name: RECEPTIONIST_REPLACEMENT_VALIDATION
+          value: "true"
+        - name: BASELINE_RECEPTIONIST_COST_EUR
+          value: "1200"   # €1,200/month baseline cost
+        - name: ENTERPRISE_TIER_COST_EUR
+          value: "299.99" # €299.99/month Enterprise tier
+        - name: TARGET_ROI_PERCENTAGE
+          value: "300"    # 300% ROI target
+        
+        envFrom:
+        - configMapRef:
+            name: voice-integration-testing-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: ELEVENLABS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ELEVENLABS_API_KEY
+        
+        command: ["/app/scripts/voice-agent-integration-test.sh"]
+        args: ["--test-type", "full-integration", "--languages", "en,de,nl,fr"]
+        
+        volumeMounts:
+        - name: voice-test-results
+          mountPath: /test-results
+        - name: voice-recordings
+          mountPath: /voice-recordings
+        - name: test-scenarios
+          mountPath: /test-scenarios
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: voice-test-results
+        persistentVolumeClaim:
+          claimName: voice-integration-test-results-pvc
+      - name: voice-recordings
+        persistentVolumeClaim:
+          claimName: voice-recordings-pvc
+      - name: test-scenarios
+        configMap:
+          name: voice-test-scenarios
+
+---
+# Voice Quality Assurance Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: voice-quality-assurance-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-quality-assurance
+    phase: "3b-voice-quality"
+spec:
+  activeDeadlineSeconds: 3600  # 1 hour
+  template:
+    spec:
+      serviceAccountName: voice-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: voice-quality-tester
+        image: gemini-salon/voice-quality-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 3000m
+            memory: 6Gi
+        
+        env:
+        # Voice Quality Testing Configuration
+        - name: TEST_TYPE
+          value: "VOICE_QUALITY_ASSURANCE"
+        - name: VOICE_QUALITY_ANALYSIS_ENABLED
+          value: "true"
+        - name: REAL_TIME_QUALITY_MONITORING
+          value: "true"
+        
+        # Audio Quality Parameters
+        - name: SAMPLE_RATE_HZ
+          value: "8000"   # 8kHz standard for telephony
+        - name: CODEC_TESTING
+          value: "PCMU,PCMA,G729,Opus"  # Test multiple codecs
+        - name: JITTER_THRESHOLD_MS
+          value: "30"     # <30ms jitter
+        - name: PACKET_LOSS_THRESHOLD_PERCENT
+          value: "0.1"    # <0.1% packet loss
+        - name: LATENCY_THRESHOLD_MS
+          value: "150"    # <150ms end-to-end latency
+        
+        # Voice Recognition Testing
+        - name: SPEECH_RECOGNITION_ACCURACY_THRESHOLD
+          value: "95"     # 95% speech recognition accuracy
+        - name: VOICE_SYNTHESIS_QUALITY_THRESHOLD
+          value: "4.0"    # MOS score 4.0+ for synthesis
+        - name: BACKGROUND_NOISE_TOLERANCE_DB
+          value: "40"     # Handle 40dB background noise
+        
+        # Multilingual Voice Quality
+        - name: MULTILINGUAL_QUALITY_TESTING
+          value: "true"
+        - name: ACCENT_ADAPTATION_TESTING
+          value: "true"
+        - name: CULTURAL_CONTEXT_VALIDATION
+          value: "true"
+        
+        # Voice Agent Intelligence Testing
+        - name: CONTEXT_PRESERVATION_ACCURACY
+          value: "90"     # 90% context preservation across call
+        - name: INTENT_RECOGNITION_ACCURACY
+          value: "92"     # 92% intent recognition accuracy
+        - name: RESPONSE_RELEVANCE_THRESHOLD
+          value: "88"     # 88% response relevance score
+        
+        envFrom:
+        - configMapRef:
+            name: voice-quality-testing-config
+        
+        command: ["/app/scripts/voice-quality-assurance.sh"]
+        
+        volumeMounts:
+        - name: voice-quality-results
+          mountPath: /test-results
+        - name: audio-samples
+          mountPath: /audio-samples
+      
+      volumes:
+      - name: voice-quality-results
+        persistentVolumeClaim:
+          claimName: voice-quality-results-pvc
+      - name: audio-samples
+        configMap:
+          name: audio-test-samples
+
+---
+# Business Process Integration Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: business-process-integration-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-process-integration
+    phase: "3b-business-process"
+spec:
+  activeDeadlineSeconds: 2700  # 45 minutes
+  template:
+    spec:
+      serviceAccountName: voice-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: business-process-tester
+        image: gemini-salon/business-process-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Business Process Testing Configuration
+        - name: TEST_TYPE
+          value: "BUSINESS_PROCESS_INTEGRATION"
+        - name: N8N_API_URL
+          value: "http://n8n-service:5678/api"
+        - name: CALENDAR_INTEGRATION_TESTING
+          value: "true"
+        - name: WHATSAPP_INTEGRATION_TESTING
+          value: "true"
+        - name: INSTAGRAM_INTEGRATION_TESTING
+          value: "true"
+        
+        # Booking Process Testing
+        - name: BOOKING_WORKFLOW_VALIDATION
+          value: "true"
+        - name: APPOINTMENT_SCHEDULING_ACCURACY
+          value: "98"     # 98% accurate appointment scheduling
+        - name: DOUBLE_BOOKING_PREVENTION
+          value: "true"   # Must prevent double bookings
+        - name: CANCELLATION_HANDLING_ACCURACY
+          value: "95"     # 95% accurate cancellation processing
+        
+        # Customer Journey Testing
+        - name: CUSTOMER_JOURNEY_VALIDATION
+          value: "true"
+        - name: CROSS_CHANNEL_CONTEXT_PRESERVATION
+          value: "94"     # 94% context preservation across channels
+        - name: HANDOFF_SUCCESS_RATE
+          value: "92"     # 92% successful channel handoffs
+        
+        # Voice to Action Conversion Testing
+        - name: VOICE_TO_BOOKING_CONVERSION_RATE
+          value: "85"     # 85% voice call to booking conversion
+        - name: VOICE_TO_INFORMATION_SUCCESS_RATE
+          value: "95"     # 95% successful information requests
+        - name: VOICE_TO_COMPLAINT_RESOLUTION_RATE
+          value: "80"     # 80% complaint resolution rate
+        
+        # Revenue Impact Testing
+        - name: REVENUE_TRACKING_ACCURACY
+          value: "99.9"   # 99.9% revenue tracking accuracy
+        - name: COST_SAVINGS_CALCULATION_ACCURACY
+          value: "99.5"   # 99.5% cost savings calculation accuracy
+        - name: ROI_REPORTING_ACCURACY
+          value: "99"     # 99% ROI reporting accuracy
+        
+        envFrom:
+        - configMapRef:
+            name: business-process-testing-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: GOOGLE_CALENDAR_CREDENTIALS
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GOOGLE_CALENDAR_CREDENTIALS
+        - name: WHATSAPP_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: WHATSAPP_API_TOKEN
+        
+        command: ["/app/scripts/business-process-integration-test.sh"]
+        
+        volumeMounts:
+        - name: business-process-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: business-process-results
+        persistentVolumeClaim:
+          claimName: business-process-results-pvc
+
+---
+# Voice Agent n8n Node Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: voice-agent-node-integration-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-agent-node-testing
+    phase: "3b-voice-agent-node"
+spec:
+  activeDeadlineSeconds: 1800  # 30 minutes
+  template:
+    spec:
+      serviceAccountName: voice-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: voice-agent-node-tester
+        image: gemini-salon/voice-agent-node-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Voice Agent Node Testing Configuration
+        - name: TEST_TYPE
+          value: "VOICE_AGENT_NODE_INTEGRATION"
+        - name: N8N_WORKFLOW_ENDPOINT
+          value: "http://n8n-service:5678/webhook/voice-agent-test"
+        - name: VOICE_GATEWAY_ENDPOINT
+          value: "http://voice-gateway-service:8080"
+        
+        # VoiceAgent Node Operation Testing
+        - name: TEST_INITIATE_CALL_OPERATION
+          value: "true"
+        - name: TEST_PROCESS_MISSED_CALL_OPERATION
+          value: "true"
+        - name: TEST_MANAGE_CAMPAIGN_OPERATION
+          value: "true"
+        - name: TEST_CHECK_STATUS_OPERATION
+          value: "true"
+        - name: TEST_GET_ANALYTICS_OPERATION
+          value: "true"
+        
+        # Integration Testing Parameters
+        - name: VOICE_AGENT_NODE_SUCCESS_RATE_THRESHOLD
+          value: "98"     # 98% success rate for node operations
+        - name: N8N_WORKFLOW_EXECUTION_TIME_THRESHOLD_MS
+          value: "3000"   # <3s workflow execution time
+        - name: ERROR_HANDLING_VALIDATION
+          value: "true"   # Validate proper error handling
+        
+        # Campaign Management Testing
+        - name: CAMPAIGN_CREATION_SUCCESS_RATE
+          value: "95"     # 95% campaign creation success
+        - name: CAMPAIGN_EXECUTION_ACCURACY
+          value: "92"     # 92% campaign execution accuracy
+        - name: CAMPAIGN_ANALYTICS_ACCURACY
+          value: "98"     # 98% analytics accuracy
+        
+        # Spam Protection Testing (TwilioLookup integration)
+        - name: SPAM_DETECTION_ACCURACY
+          value: "95"     # 95% spam detection accuracy
+        - name: CARRIER_VALIDATION_SUCCESS_RATE
+          value: "98"     # 98% carrier validation success
+        - name: PHONE_NUMBER_VALIDATION_ACCURACY
+          value: "99"     # 99% phone number validation accuracy
+        
+        envFrom:
+        - configMapRef:
+            name: voice-agent-node-testing-config
+        
+        env:
+        - name: N8N_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: N8N_API_KEY
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: TWILIO_AUTH_TOKEN
+        
+        command: ["/app/scripts/voice-agent-node-integration-test.sh"]
+        
+        volumeMounts:
+        - name: voice-agent-node-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: voice-agent-node-results
+        persistentVolumeClaim:
+          claimName: voice-agent-node-results-pvc
+
+---
+# Voice Integration Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-integration-testing-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-integration-testing
+data:
+  # Voice Agent Integration Test Scenarios
+  VOICE_INTEGRATION_TEST_SCENARIOS: |
+    [
+      {
+        "scenario": "customer_booking_call",
+        "description": "Customer calls to book appointment",
+        "test_steps": [
+          "initiate_call",
+          "greeting_and_language_detection",
+          "service_inquiry",
+          "availability_check",
+          "booking_confirmation",
+          "call_summary"
+        ],
+        "expected_duration_seconds": 180,
+        "success_criteria": {
+          "booking_completed": true,
+          "customer_satisfaction": 4.5,
+          "voice_quality_mos": 4.0
+        }
+      },
+      {
+        "scenario": "appointment_modification_call", 
+        "description": "Customer calls to modify existing appointment",
+        "test_steps": [
+          "initiate_call",
+          "customer_identification",
+          "existing_appointment_retrieval",
+          "modification_request_processing",
+          "new_time_slot_booking",
+          "confirmation_and_summary"
+        ],
+        "expected_duration_seconds": 240,
+        "success_criteria": {
+          "modification_completed": true,
+          "original_appointment_cancelled": true,
+          "new_appointment_confirmed": true
+        }
+      },
+      {
+        "scenario": "service_information_call",
+        "description": "Customer calls for service information",
+        "test_steps": [
+          "initiate_call", 
+          "service_inquiry",
+          "detailed_information_provision",
+          "pricing_discussion",
+          "booking_offer",
+          "call_conclusion"
+        ],
+        "expected_duration_seconds": 150,
+        "success_criteria": {
+          "information_accuracy": 95,
+          "customer_satisfaction": 4.2
+        }
+      },
+      {
+        "scenario": "complaint_resolution_call",
+        "description": "Customer calls with service complaint",
+        "test_steps": [
+          "initiate_call",
+          "complaint_listening",
+          "empathy_demonstration",
+          "resolution_options_presentation",
+          "resolution_implementation",
+          "follow_up_scheduling"
+        ],
+        "expected_duration_seconds": 300,
+        "success_criteria": {
+          "complaint_resolved": true,
+          "customer_satisfaction_recovery": 4.0,
+          "follow_up_scheduled": true
+        }
+      }
+    ]
+  
+  # Multilingual Testing Configuration
+  MULTILINGUAL_TESTING_CONFIG: |
+    {
+      "supported_languages": [
+        {
+          "code": "en",
+          "name": "English",
+          "voice_model": "elevenlabs_en_professional",
+          "cultural_context": "international_business",
+          "test_scenarios": ["booking", "modification", "information", "complaint"]
+        },
+        {
+          "code": "de", 
+          "name": "German",
+          "voice_model": "elevenlabs_de_professional",
+          "cultural_context": "german_business_formal",
+          "test_scenarios": ["booking", "information"]
+        },
+        {
+          "code": "nl",
+          "name": "Dutch", 
+          "voice_model": "elevenlabs_nl_professional",
+          "cultural_context": "dutch_business_casual",
+          "test_scenarios": ["booking", "modification"]
+        },
+        {
+          "code": "fr",
+          "name": "French",
+          "voice_model": "elevenlabs_fr_professional", 
+          "cultural_context": "french_business_formal",
+          "test_scenarios": ["information", "complaint"]
+        }
+      ],
+      "language_detection_accuracy_threshold": 95,
+      "accent_recognition_threshold": 90,
+      "cultural_appropriateness_score_threshold": 85
+    }
+  
+  # ROI Validation Configuration
+  ROI_VALIDATION_CONFIG: |
+    {
+      "receptionist_replacement_analysis": {
+        "baseline_receptionist_cost_monthly": 1200,
+        "enterprise_tier_cost_monthly": 299.99,
+        "monthly_savings": 900.01,
+        "annual_savings": 10800.12,
+        "roi_percentage": 300.34
+      },
+      "efficiency_metrics": {
+        "calls_handled_per_hour_human": 12,
+        "calls_handled_per_hour_ai": 60,
+        "efficiency_multiplier": 5,
+        "24_7_availability_value": "priceless"
+      },
+      "quality_metrics": {
+        "human_consistency_score": 75,
+        "ai_consistency_score": 95,
+        "human_error_rate": 8,
+        "ai_error_rate": 2,
+        "customer_satisfaction_improvement": 15
+      }
+    }
+
+---
+# Voice Quality Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-quality-testing-config
+  namespace: gemini-salon
+data:
+  # Audio Quality Testing Parameters
+  AUDIO_QUALITY_TESTING: |
+    {
+      "codecs_to_test": [
+        {
+          "name": "PCMU",
+          "sample_rate": 8000,
+          "expected_mos": 3.8,
+          "bandwidth_kbps": 64
+        },
+        {
+          "name": "PCMA", 
+          "sample_rate": 8000,
+          "expected_mos": 3.8,
+          "bandwidth_kbps": 64
+        },
+        {
+          "name": "G729",
+          "sample_rate": 8000, 
+          "expected_mos": 3.9,
+          "bandwidth_kbps": 8
+        },
+        {
+          "name": "Opus",
+          "sample_rate": 48000,
+          "expected_mos": 4.5,
+          "bandwidth_kbps": 32
+        }
+      ],
+      "quality_thresholds": {
+        "mos_minimum": 4.0,
+        "jitter_maximum_ms": 30,
+        "packet_loss_maximum_percent": 0.1,
+        "latency_maximum_ms": 150
+      }
+    }
+  
+  # Voice Recognition Testing
+  VOICE_RECOGNITION_TESTING: |
+    {
+      "speech_recognition_tests": [
+        {
+          "test_type": "clear_speech",
+          "expected_accuracy": 98,
+          "sample_phrases": [
+            "I would like to book an appointment for next Tuesday",
+            "Can you tell me about your hair coloring services",
+            "I need to cancel my appointment for tomorrow"
+          ]
+        },
+        {
+          "test_type": "accented_speech",
+          "expected_accuracy": 95,
+          "accents_tested": ["british", "american", "australian", "german", "dutch", "french"]
+        },
+        {
+          "test_type": "background_noise",
+          "expected_accuracy": 92,
+          "noise_levels_db": [20, 30, 40, 50]
+        }
+      ],
+      "voice_synthesis_tests": [
+        {
+          "test_type": "naturalness",
+          "expected_mos": 4.2,
+          "languages": ["en", "de", "nl", "fr"]
+        },
+        {
+          "test_type": "intelligibility", 
+          "expected_accuracy": 96,
+          "test_sentences_per_language": 50
+        }
+      ]
+    }
+
+---
+# Business Process Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: business-process-testing-config
+  namespace: gemini-salon
+data:
+  # Business Workflow Testing
+  BUSINESS_WORKFLOW_TESTING: |
+    {
+      "booking_workflows": [
+        {
+          "workflow_name": "standard_booking",
+          "steps": [
+            "customer_greeting",
+            "service_selection", 
+            "stylist_preference",
+            "availability_check",
+            "time_slot_booking",
+            "customer_details_collection",
+            "booking_confirmation",
+            "calendar_integration",
+            "confirmation_email_whatsapp"
+          ],
+          "expected_completion_time_seconds": 180,
+          "success_rate_threshold": 95
+        },
+        {
+          "workflow_name": "complex_booking_multiple_services",
+          "steps": [
+            "customer_greeting",
+            "multiple_service_selection",
+            "duration_calculation",
+            "stylist_matching",
+            "availability_optimization",
+            "pricing_calculation",
+            "booking_confirmation",
+            "calendar_integration",
+            "service_preparation_notification"
+          ],
+          "expected_completion_time_seconds": 300,
+          "success_rate_threshold": 90
+        }
+      ],
+      "cross_channel_workflows": [
+        {
+          "workflow_name": "voice_to_whatsapp_handoff",
+          "trigger": "customer_requests_written_confirmation",
+          "expected_handoff_time_seconds": 30,
+          "context_preservation_accuracy": 94
+        },
+        {
+          "workflow_name": "instagram_to_voice_escalation",
+          "trigger": "complex_inquiry_requires_verbal_explanation", 
+          "expected_callback_time_seconds": 120,
+          "escalation_success_rate": 88
+        }
+      ]
+    }
+  
+  # Revenue and Cost Tracking
+  REVENUE_COST_TRACKING: |
+    {
+      "revenue_tracking_tests": [
+        {
+          "metric": "voice_call_to_booking_conversion",
+          "target_rate": 85,
+          "revenue_per_booking_average": 75,
+          "monthly_call_volume": 1000
+        },
+        {
+          "metric": "customer_lifetime_value_increase",
+          "baseline_ltv": 500,
+          "voice_enhanced_ltv": 650,
+          "improvement_percentage": 30
+        }
+      ],
+      "cost_savings_tests": [
+        {
+          "metric": "receptionist_replacement_savings",
+          "baseline_cost": 1200,
+          "ai_cost": 299.99,
+          "monthly_savings": 900.01,
+          "annual_savings": 10800.12
+        },
+        {
+          "metric": "operational_efficiency_savings",
+          "reduced_no_shows_percentage": 25,
+          "improved_scheduling_efficiency": 40,
+          "reduced_administrative_overhead": 60
+        }
+      ]
+    }
+
+---
+# Voice Agent Node Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-agent-node-testing-config
+  namespace: gemini-salon
+data:
+  # VoiceAgent Node Operation Tests
+  VOICE_AGENT_NODE_OPERATIONS: |
+    {
+      "initiateCall": {
+        "test_scenarios": [
+          {
+            "name": "successful_call_initiation",
+            "input": {
+              "salonId": "test-salon-001",
+              "customerPhone": "+31612345678",
+              "callType": "booking_reminder",
+              "language": "nl"
+            },
+            "expected_output": {
+              "callId": "present",
+              "status": "initiated",
+              "estimatedDuration": 120
+            }
+          },
+          {
+            "name": "invalid_phone_number_handling",
+            "input": {
+              "salonId": "test-salon-001", 
+              "customerPhone": "invalid-phone",
+              "callType": "booking_reminder"
+            },
+            "expected_output": {
+              "error": "INVALID_PHONE_NUMBER",
+              "status": "failed"
+            }
+          }
+        ]
+      },
+      "processMissedCall": {
+        "test_scenarios": [
+          {
+            "name": "missed_call_processing",
+            "input": {
+              "salonId": "test-salon-001",
+              "customerPhone": "+31612345678", 
+              "missedCallTime": "2025-06-19T14:30:00Z"
+            },
+            "expected_output": {
+              "callbackScheduled": true,
+              "priority": "high",
+              "estimatedCallbackTime": "within_2_hours"
+            }
+          }
+        ]
+      },
+      "manageCampaign": {
+        "test_scenarios": [
+          {
+            "name": "campaign_creation",
+            "input": {
+              "salonId": "test-salon-001",
+              "campaignType": "appointment_reminders",
+              "targetAudience": "customers_with_appointments_tomorrow",
+              "language": "en"
+            },
+            "expected_output": {
+              "campaignId": "present",
+              "status": "created",
+              "estimatedTargets": "numeric"
+            }
+          }
+        ]
+      }
+    }
+  
+  # Integration Testing Scenarios
+  INTEGRATION_TEST_SCENARIOS: |
+    {
+      "voice_gateway_integration": {
+        "websocket_connection_test": {
+          "connection_timeout_ms": 5000,
+          "heartbeat_interval_ms": 30000,
+          "reconnection_attempts": 3
+        },
+        "audio_streaming_test": {
+          "audio_formats": ["wav", "mp3", "pcm"],
+          "sample_rates": [8000, 16000, 44100],
+          "quality_validation": true
+        }
+      },
+      "n8n_workflow_integration": {
+        "workflow_execution_test": {
+          "max_execution_time_ms": 3000,
+          "success_rate_threshold": 98,
+          "error_handling_validation": true
+        },
+        "data_flow_validation": {
+          "input_validation": true,
+          "output_transformation": true,
+          "error_propagation": true
+        }
+      }
+    }
+
+---
+# Voice Test Scenarios and Audio Samples
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-test-scenarios
+  namespace: gemini-salon
+data:
+  # Test call scenarios in multiple languages
+  booking_scenarios_en.json: |
+    [
+      {
+        "scenario": "standard_booking",
+        "customer_input": "Hi, I'd like to book a haircut for next Tuesday afternoon",
+        "expected_ai_response": "Hello! I'd be happy to help you book a haircut. Let me check our availability for next Tuesday afternoon.",
+        "conversation_flow": [
+          "greeting_and_service_identification",
+          "availability_check",
+          "time_preference_clarification", 
+          "stylist_selection",
+          "customer_details_collection",
+          "booking_confirmation"
+        ]
+      }
+    ]
+  
+  booking_scenarios_de.json: |
+    [
+      {
+        "scenario": "standard_booking_german",
+        "customer_input": "Guten Tag, ich möchte einen Termin für einen Haarschnitt buchen",
+        "expected_ai_response": "Guten Tag! Gerne helfe ich Ihnen bei der Terminbuchung für einen Haarschnitt.",
+        "conversation_flow": [
+          "greeting_and_service_identification",
+          "availability_check", 
+          "time_preference_clarification",
+          "stylist_selection",
+          "customer_details_collection",
+          "booking_confirmation"
+        ]
+      }
+    ]
+
+---
+# Audio Test Samples Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audio-test-samples
+  namespace: gemini-salon
+data:
+  # Audio sample metadata for testing
+  audio_samples_config.json: |
+    {
+      "test_audio_samples": [
+        {
+          "filename": "clear_english_booking.wav",
+          "language": "en",
+          "speaker": "female_professional",
+          "content": "Hi, I'd like to book an appointment for a hair color and cut next week",
+          "duration_seconds": 8,
+          "expected_transcription_accuracy": 98
+        },
+        {
+          "filename": "german_accent_booking.wav", 
+          "language": "de",
+          "speaker": "male_professional",
+          "content": "Ich hätte gerne einen Termin für eine Haarbehandlung am Donnerstag",
+          "duration_seconds": 10,
+          "expected_transcription_accuracy": 95
+        },
+        {
+          "filename": "background_noise_booking.wav",
+          "language": "en", 
+          "speaker": "female_casual",
+          "content": "Can I schedule a manicure appointment for this Saturday",
+          "background_noise_db": 35,
+          "expected_transcription_accuracy": 90
+        }
+      ]
+    }
+
+---
+# Storage for Voice Testing Results
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: voice-integration-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: voice-recordings-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: voice-quality-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: business-process-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 3Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: voice-agent-node-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# RBAC for Voice Testing
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: voice-testing-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-testing
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: voice-testing-role
+rules:
+# Allow reading all resources for voice testing
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Allow reading deployments for integration testing
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+# Allow creating test jobs and workflows
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["create", "get", "list", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: voice-testing-role-binding
+  namespace: gemini-salon
+subjects:
+- kind: ServiceAccount
+  name: voice-testing-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: voice-testing-role
+  apiGroup: rbac.authorization.k8s.io

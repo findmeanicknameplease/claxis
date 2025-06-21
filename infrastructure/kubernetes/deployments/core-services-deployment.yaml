@@ -1,0 +1,589 @@
+# Notifier Service - Real-time Event Distribution
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifier-deployment
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: notifier
+    tier: application
+    version: "1.0.0"
+  annotations:
+    description: "Notifier Service - Real-time WebSocket event distribution"
+spec:
+  replicas: 2  # 2 replicas for high availability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: notifier
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: notifier
+        tier: application
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      imagePullSecrets:
+      - name: regcred
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - notifier
+              topologyKey: kubernetes.io/hostname
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: notifier
+        image: gemini-salon/notifier:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m      # Lower CPU for event distribution
+            memory: 512Mi  # Memory-optimized for connection pools
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3001"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: HEALTH_PORT
+          value: "3003"
+        
+        envFrom:
+        - configMapRef:
+            name: gemini-salon-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: JWT_SECRET
+        
+        ports:
+        - name: websocket
+          containerPort: 3001
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 3003
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: logs-storage
+          mountPath: /app/logs
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: logs-storage
+        persistentVolumeClaim:
+          claimName: logs-pvc
+      
+      terminationGracePeriodSeconds: 30
+
+---
+# n8n Bridge Service - Event to Webhook Bridge
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-bridge-deployment
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: n8n-bridge
+    tier: application
+    version: "1.0.0"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: n8n-bridge
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: n8n-bridge
+        tier: application
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      imagePullSecrets:
+      - name: regcred
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: n8n-bridge
+        image: gemini-salon/n8n-bridge:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m      # Lightweight HTTP service
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3002"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: HEALTH_PORT
+          value: "3004"
+        
+        envFrom:
+        - configMapRef:
+            name: gemini-salon-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: N8N_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: N8N_WEBHOOK_URL
+        
+        ports:
+        - name: http
+          containerPort: 3002
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 3004
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Redis Cache - High-Performance Data Store
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: redis
+    tier: data
+    version: "7.2.0"
+spec:
+  replicas: 1  # Redis single instance (use Redis Cluster for HA in production)
+  strategy:
+    type: Recreate  # Recreate for stateful services
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: redis
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: redis
+        tier: data
+        version: "7.2.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9121"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999  # Redis user
+        runAsGroup: 999
+        fsGroup: 999
+      
+      containers:
+      - name: redis
+        image: redis:7.2.0-alpine
+        imagePullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: REDIS_PASSWORD
+        
+        ports:
+        - name: redis
+          containerPort: 6379
+        
+        # Redis configuration
+        command:
+        - redis-server
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        - --maxmemory
+        - 1gb
+        - --maxmemory-policy
+        - allkeys-lru
+        - --save
+        - 900 1
+        - --save
+        - 300 10
+        - --save
+        - 60 10000
+        
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: redis-storage
+          mountPath: /data
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # Redis needs to write to /data
+          capabilities:
+            drop:
+            - ALL
+      
+      # Redis Exporter for Prometheus metrics
+      - name: redis-exporter
+        image: oliver006/redis_exporter:v1.55.0
+        imagePullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        
+        env:
+        - name: REDIS_ADDR
+          value: "localhost:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: REDIS_PASSWORD
+        
+        ports:
+        - name: metrics
+          containerPort: 9121
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: redis-storage
+        persistentVolumeClaim:
+          claimName: redis-pvc
+      
+      terminationGracePeriodSeconds: 30
+
+---
+# n8n Workflows - Automation Engine
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-deployment
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: n8n
+    tier: automation
+    version: "1.17.0"
+spec:
+  replicas: 1  # n8n single instance (use n8n Queue Mode for scale)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: n8n
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: n8n
+        tier: automation
+        version: "1.17.0"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      containers:
+      - name: n8n
+        image: n8nio/n8n:1.17.0
+        imagePullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: N8N_PORT
+          value: "5678"
+        - name: N8N_PROTOCOL
+          value: "http"
+        - name: N8N_HOST
+          value: "0.0.0.0"
+        - name: WEBHOOK_URL
+          value: "https://n8n.geminisalon.ai"
+        - name: N8N_METRICS
+          value: "true"
+        - name: N8N_DIAGNOSTICS_ENABLED
+          value: "false"
+        - name: N8N_PERSONALIZATION_ENABLED
+          value: "false"
+        - name: N8N_VERSION_NOTIFICATIONS_ENABLED
+          value: "false"
+        - name: N8N_TEMPLATES_ENABLED
+          value: "false"
+        
+        env:
+        - name: DB_TYPE
+          value: "postgresdb"
+        - name: DB_POSTGRESDB_HOST
+          value: "supabase-host"
+        - name: DB_POSTGRESDB_PORT
+          value: "5432"
+        - name: DB_POSTGRESDB_DATABASE
+          value: "n8n"
+        - name: DB_POSTGRESDB_USER
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: N8N_DB_USER
+        - name: DB_POSTGRESDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: N8N_DB_PASSWORD
+        - name: N8N_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: N8N_ENCRYPTION_KEY
+        
+        ports:
+        - name: http
+          containerPort: 5678
+        
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        volumeMounts:
+        - name: n8n-storage
+          mountPath: /home/node/.n8n
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # n8n needs to write workflow data
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: n8n-storage
+        persistentVolumeClaim:
+          claimName: n8n-workflows-pvc
+      
+      terminationGracePeriodSeconds: 60
+
+---
+# HPA for Notifier Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: notifier-hpa
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: notifier
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: notifier-deployment
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# HPA for n8n Bridge Service  
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: n8n-bridge-hpa
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: n8n-bridge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: n8n-bridge-deployment
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

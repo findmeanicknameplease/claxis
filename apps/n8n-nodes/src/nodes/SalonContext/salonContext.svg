@@ -1,0 +1,17 @@
+<svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="30" cy="30" r="28" fill="#E879F9" stroke="#A21CAF" stroke-width="2"/>
+  
+  <!-- Salon Chair Icon -->
+  <path d="M20 25 C20 20, 25 15, 30 15 C35 15, 40 20, 40 25 L40 35 C40 40, 35 45, 30 45 C25 45, 20 40, 20 35 Z" 
+        fill="white" stroke="#A21CAF" stroke-width="1.5"/>
+  
+  <!-- Chair Back -->
+  <rect x="25" y="12" width="10" height="8" rx="2" fill="white" stroke="#A21CAF" stroke-width="1.5"/>
+  
+  <!-- Settings Gear -->
+  <circle cx="45" cy="15" r="8" fill="#F59E0B" stroke="#D97706" stroke-width="1"/>
+  <circle cx="45" cy="15" r="4" fill="white"/>
+  <path d="M41 15 L49 15 M45 11 L45 19 M42.5 12.5 L47.5 17.5 M47.5 12.5 L42.5 17.5" 
+        stroke="#D97706" stroke-width="1"/>
+</svg>

@@ -1,0 +1,519 @@
+# Network Security Policies - Zero Trust Architecture
+# Implements micro-segmentation for premium security
+
+---
+# Default Deny All Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: network-security
+    policy-type: deny-all
+  annotations:
+    description: "Default deny all traffic - Zero Trust foundation"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# Allow DNS Resolution (Essential)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: network-security
+    policy-type: allow-dns
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+  policyTypes:
+  - Egress
+  egress:
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# Voice Gateway Service Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: voice-gateway-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-gateway
+    policy-type: service-specific
+  annotations:
+    description: "Voice Gateway - Secure WebSocket and HTTP traffic"
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+      component: voice-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow traffic from Ingress Controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080  # HTTP API
+    - protocol: TCP
+      port: 8081  # WebSocket
+  
+  # Allow health checks from monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: prometheus
+    ports:
+    - protocol: TCP
+      port: 8082  # Health check
+    - protocol: TCP
+      port: 9090  # Metrics
+  
+  egress:
+  # Allow database connections
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+  
+  # Allow external API calls (Twilio, ElevenLabs)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 80   # HTTP (redirects to HTTPS)
+  
+  # Allow communication with Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  
+  # Allow communication with Notifier Service
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: notifier
+    ports:
+    - protocol: TCP
+      port: 3001
+
+---
+# Notifier Service Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: notifier-service-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: notifier
+    policy-type: service-specific
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+      component: notifier
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow from Ingress Controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3001  # WebSocket
+  
+  # Allow from Voice Gateway
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: voice-gateway
+    ports:
+    - protocol: TCP
+      port: 3001
+  
+  # Allow from Frontend
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: frontend
+    ports:
+    - protocol: TCP
+      port: 3001
+  
+  # Allow monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: prometheus
+    ports:
+    - protocol: TCP
+      port: 3003  # Health
+    - protocol: TCP
+      port: 9090  # Metrics
+  
+  egress:
+  # Allow database connections
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# n8n Bridge Service Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: n8n-bridge-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: n8n-bridge
+    policy-type: service-specific
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+      component: n8n-bridge
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Only allow internal service communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+    ports:
+    - protocol: TCP
+      port: 3002
+  
+  # Allow monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: prometheus
+    ports:
+    - protocol: TCP
+      port: 3004  # Health
+    - protocol: TCP
+      port: 9090  # Metrics
+  
+  egress:
+  # Allow database connections
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow n8n webhook calls
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: n8n
+    ports:
+    - protocol: TCP
+      port: 5678
+
+---
+# Redis Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: redis
+    policy-type: service-specific
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+      component: redis
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Only allow from application services
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: voice-gateway
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: notifier
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: frontend
+    ports:
+    - protocol: TCP
+      port: 6379
+  
+  # Allow monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: prometheus
+    ports:
+    - protocol: TCP
+      port: 9121  # Redis Exporter
+  
+  egress:
+  # Redis typically doesn't need outbound connections
+  - to: []
+    ports: []
+
+---
+# n8n Workflows Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: n8n-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: n8n
+    policy-type: service-specific
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+      component: n8n
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow from Ingress Controller (admin access)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 5678
+  
+  # Allow from n8n Bridge
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: n8n-bridge
+    ports:
+    - protocol: TCP
+      port: 5678
+  
+  egress:
+  # Allow database connections
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow external API calls for integrations
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+# Monitoring Services Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: monitoring
+    policy-type: service-specific
+spec:
+  podSelector:
+    matchLabels:
+      tier: monitoring
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow from Ingress Controller (admin access)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000  # Grafana
+    - protocol: TCP
+      port: 9090  # Prometheus
+    - protocol: TCP
+      port: 9093  # AlertManager
+  
+  # Allow internal monitoring communication
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: monitoring
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 9093
+  
+  egress:
+  # Allow scraping all services
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8082
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 9121
+    - protocol: TCP
+      port: 3003
+    - protocol: TCP
+      port: 3004
+  
+  # Allow database connections for Grafana
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow external notifications (Slack, PagerDuty)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# Frontend Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: frontend
+    policy-type: service-specific
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+      component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow from Ingress Controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000
+  
+  # Allow monitoring
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: prometheus
+    ports:
+    - protocol: TCP
+      port: 3005  # Health
+    - protocol: TCP
+      port: 9090  # Metrics
+  
+  egress:
+  # Allow database connections
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow communication with backend services
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: voice-gateway
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: notifier
+    ports:
+    - protocol: TCP
+      port: 3001
+  
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+          component: redis
+    ports:
+    - protocol: TCP
+      port: 6379

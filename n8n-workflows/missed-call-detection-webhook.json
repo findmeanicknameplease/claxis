@@ -1,0 +1,550 @@
+{
+  "name": "Missed Call Detection Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "missed-call-detection",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Missed Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        200
+      ],
+      "webhookId": "missed-call-detection"
+    },
+    {
+      "parameters": {
+        "salonId": "={{ $json.salon_id }}",
+        "operation": "getContext"
+      },
+      "id": "get-salon-context",
+      "name": "Get Salon Context",
+      "type": "@claxis/salon-context",
+      "typeVersion": 1,
+      "position": [
+        300,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.customer_context.is_existing_customer }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-existing-customer",
+      "name": "Existing Customer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getMany",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.SUPABASE_DATABASE_ID }}",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "bookings",
+          "mode": "list"
+        },
+        "select": "id,scheduled_at,status,services(name,price),created_at",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "customer_id",
+              "operator": "eq",
+              "keyValue": "={{ $('Missed Call Webhook').item.json.customer_context.customer_id }}"
+            },
+            {
+              "keyName": "salon_id",
+              "operator": "eq",
+              "keyValue": "={{ $('Missed Call Webhook').item.json.salon_id }}"
+            }
+          ]
+        },
+        "options": {
+          "limit": 5,
+          "sort": {
+            "fields": [
+              {
+                "field": "scheduled_at",
+                "direction": "DESC"
+              }
+            ]
+          }
+        }
+      },
+      "id": "get-customer-history",
+      "name": "Get Customer History",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        700,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.SUPABASE_DATABASE_ID }}",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customer_voice_preferences",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_id": "={{ $('Missed Call Webhook').item.json.customer_context.customer_id || null }}",
+            "salon_id": "={{ $('Missed Call Webhook').item.json.salon_id }}",
+            "phone_number": "={{ $('Missed Call Webhook').item.json.customer_phone }}",
+            "preferred_language": "nl",
+            "allow_voice_calls": true,
+            "allow_voice_followups": true,
+            "last_voice_interaction_at": "={{ new Date().toISOString() }}",
+            "total_voice_interactions": 1
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "upsert": true
+        }
+      },
+      "id": "update-voice-preferences",
+      "name": "Update Voice Preferences",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        700,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $('Missed Call Webhook').item.json.spam_check_result.is_verified_safe }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-safe-number",
+      "name": "Safe Number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI assistant for {{ $('Get Salon Context').item.json.business_name }}, a premium beauty salon.\n\nA customer just called but we missed their call. Here's what we know:\n- Phone: {{ $('Missed Call Webhook').item.json.customer_phone }}\n- Customer: {{ $('Missed Call Webhook').item.json.customer_context.is_existing_customer ? 'Existing customer (' + $('Missed Call Webhook').item.json.customer_context.customer_name + ')' : 'New potential customer' }}\n{{ $('Missed Call Webhook').item.json.customer_context.is_existing_customer ? '- Last visit: ' + $('Missed Call Webhook').item.json.customer_context.last_visit : '' }}\n{{ $('Missed Call Webhook').item.json.customer_context.favorite_services ? '- Favorite services: ' + $('Missed Call Webhook').item.json.customer_context.favorite_services.join(', ') : '' }}\n\nPlease generate:\n1. A personalized callback script for our voice agent\n2. Key talking points based on their history\n3. Potential offers or promotions to mention\n4. Suggested follow-up actions\n\nKeep it professional, friendly, and in Dutch language.",
+        "options": {
+          "model": "gemini-1.5-flash",
+          "temperature": 0.7,
+          "maxTokens": 500
+        }
+      },
+      "id": "generate-callback-script",
+      "name": "Generate Callback Script",
+      "type": "n8n-nodes-base.ai",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.SUPABASE_DATABASE_ID }}",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "callback_queue",
+          "mode": "list"
+        },
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "operator": "eq",
+              "keyValue": "={{ $('Missed Call Webhook').item.json.queue_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ai_generated_script": "={{ $json.response }}",
+            "customer_analysis": "={{ JSON.stringify({ \n  'customer_type': $('Missed Call Webhook').item.json.customer_context.is_existing_customer ? 'existing' : 'new',\n  'customer_value': $('Missed Call Webhook').item.json.customer_context.customer_value,\n  'last_interaction': $('Missed Call Webhook').item.json.customer_context.last_visit,\n  'preferred_services': $('Missed Call Webhook').item.json.customer_context.favorite_services\n}) }}",
+            "processing_status": "ai_script_generated"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "update-callback-queue",
+      "name": "Update Callback Queue",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ new Date($('Missed Call Webhook').item.json.callback_scheduled_for).getTime() }}",
+              "rightValue": "={{ Date.now() + (5 * 60 * 1000) }}",
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-immediate-callback",
+      "name": "Immediate Callback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VOICE_GATEWAY_URL }}/callbacks/process",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.SERVICE_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "1"
+            },
+            {
+              "name": "queue_id",
+              "value": "={{ $('Missed Call Webhook').item.json.queue_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "trigger-immediate-callback",
+      "name": "Trigger Immediate Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1500,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.SUPABASE_DATABASE_ID }}",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "callback_queue",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "salon_id": "={{ $('Missed Call Webhook').item.json.salon_id }}",
+            "phone_number": "={{ $('Missed Call Webhook').item.json.customer_phone }}",
+            "status": "cancelled",
+            "campaign_type": "spam_blocked",
+            "completion_status": "blocked_by_spam_protection",
+            "notes": "=Phone number {{ $('Missed Call Webhook').item.json.customer_phone }} blocked by spam protection. Lookup result: {{ JSON.stringify($('Missed Call Webhook').item.json.spam_check_result.lookup_response) }}",
+            "twilio_lookup_response": "={{ JSON.stringify($('Missed Call Webhook').item.json.spam_check_result.lookup_response) }}",
+            "is_verified_safe": false
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "log-spam-block",
+      "name": "Log Spam Block",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"event_processed\": \"missed_call_detection\",\n  \"queue_id\": \"{{ $('Missed Call Webhook').item.json.queue_id }}\",\n  \"customer_type\": \"{{ $('Missed Call Webhook').item.json.customer_context.is_existing_customer ? 'existing' : 'new' }}\",\n  \"callback_scheduled\": \"{{ $('Missed Call Webhook').item.json.callback_scheduled_for }}\",\n  \"spam_check_passed\": {{ $('Missed Call Webhook').item.json.spam_check_result.is_verified_safe }},\n  \"ai_script_generated\": {{ $('Generate Callback Script').item ? true : false }},\n  \"immediate_callback_triggered\": {{ $('Trigger Immediate Callback').item ? true : false }},\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        350
+      ]
+    }
+  ],
+  "connections": {
+    "Missed Call Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Salon Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Salon Context": {
+      "main": [
+        [
+          {
+            "node": "Existing Customer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existing Customer?": {
+      "main": [
+        [
+          {
+            "node": "Get Customer History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Voice Preferences",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Voice Preferences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer History": {
+      "main": [
+        [
+          {
+            "node": "Safe Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Voice Preferences": {
+      "main": [
+        [
+          {
+            "node": "Safe Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Safe Number?": {
+      "main": [
+        [
+          {
+            "node": "Generate Callback Script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Spam Block",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Callback Script": {
+      "main": [
+        [
+          {
+            "node": "Update Callback Queue",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Immediate Callback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Callback Queue": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Immediate Callback?": {
+      "main": [
+        [
+          {
+            "node": "Trigger Immediate Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Immediate Callback": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Spam Block": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-06-18T10:00:00.000Z",
+      "updatedAt": "2024-06-18T10:00:00.000Z",
+      "id": "voice-agent",
+      "name": "voice-agent"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2024-06-18T10:00:00.000Z",
+  "versionId": "v1"
+}

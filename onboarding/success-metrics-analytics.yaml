@@ -1,0 +1,822 @@
+# Success Metrics & Customer Journey Analytics for Phase 4D
+# Advanced analytics platform for customer success optimization
+
+---
+# Customer Journey Analytics Engine
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-journey-analytics-engine
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: customer-journey-analytics
+    tier: enterprise
+    version: "1.0.0"
+  annotations:
+    description: "Advanced customer journey analytics for Enterprise tier optimization"
+    business-value: "Predictive customer success and ROI optimization analytics"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: customer-journey-analytics
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: customer-journey-analytics
+        tier: enterprise
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: success-analytics-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: journey-analytics-engine
+        image: gemini-salon/customer-journey-analytics:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: analytics-api
+          containerPort: 8085
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 800m
+            memory: 2Gi
+          limits:
+            cpu: 3000m
+            memory: 6Gi
+        
+        env:
+        # Analytics Engine Configuration
+        - name: ANALYTICS_ENGINE_TYPE
+          value: "customer_journey_enterprise"
+        - name: REAL_TIME_PROCESSING
+          value: "true"
+        - name: PREDICTIVE_ANALYTICS_ENABLED
+          value: "true"
+        - name: MACHINE_LEARNING_ENABLED
+          value: "true"
+        
+        # Customer Journey Analysis
+        - name: JOURNEY_STAGE_TRACKING
+          value: "comprehensive"
+        - name: TOUCHPOINT_ANALYTICS
+          value: "omnichannel"
+        - name: BEHAVIOR_ANALYSIS
+          value: "ai_powered"
+        - name: SENTIMENT_ANALYSIS
+          value: "real_time"
+        
+        # Success Metrics Configuration
+        - name: SUCCESS_METRICS_TRACKING
+          value: "onboarding_velocity,time_to_value,feature_adoption,satisfaction_score,churn_risk,expansion_opportunity"
+        - name: KPI_CALCULATION_FREQUENCY
+          value: "real_time"
+        - name: BENCHMARK_COMPARISON
+          value: "industry_cohort"
+        
+        # Predictive Analytics
+        - name: CHURN_PREDICTION_ENABLED
+          value: "true"
+        - name: SUCCESS_PREDICTION_ENABLED
+          value: "true"
+        - name: EXPANSION_PREDICTION_ENABLED
+          value: "true"
+        - name: INTERVENTION_RECOMMENDATIONS
+          value: "ai_generated"
+        
+        # Advanced Analytics Features
+        - name: COHORT_ANALYSIS
+          value: "true"
+        - name: FUNNEL_ANALYSIS
+          value: "comprehensive"
+        - name: ATTRIBUTION_MODELING
+          value: "multi_touch"
+        - name: LIFETIME_VALUE_PREDICTION
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: customer-journey-analytics-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: ANALYTICS_WAREHOUSE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ANALYTICS_WAREHOUSE_URL
+        - name: ML_PLATFORM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ML_PLATFORM_API_KEY
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: analytics-models
+          mountPath: /app/models
+          readOnly: true
+        - name: analytics-config
+          mountPath: /app/config
+          readOnly: true
+        - name: analytics-logs
+          mountPath: /app/logs
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      # Real-Time Metrics Processor
+      - name: real-time-metrics-processor
+        image: gemini-salon/real-time-metrics-processor:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8086
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Real-Time Processing Configuration
+        - name: PROCESSOR_TYPE
+          value: "real_time_customer_metrics"
+        - name: STREAM_PROCESSING_ENGINE
+          value: "kafka_streams"
+        - name: PROCESSING_LATENCY_TARGET_MS
+          value: "100"  # <100ms processing latency
+        
+        # Metrics Processing
+        - name: ENGAGEMENT_METRICS_PROCESSING
+          value: "true"
+        - name: SATISFACTION_METRICS_PROCESSING
+          value: "true"
+        - name: BEHAVIORAL_METRICS_PROCESSING
+          value: "true"
+        - name: BUSINESS_METRICS_PROCESSING
+          value: "true"
+        
+        # Alert Generation
+        - name: REAL_TIME_ALERTING
+          value: "true"
+        - name: ANOMALY_DETECTION
+          value: "true"
+        - name: THRESHOLD_MONITORING
+          value: "true"
+        - name: TREND_ANALYSIS
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: real-time-metrics-config
+        
+        env:
+        - name: KAFKA_BROKERS
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: KAFKA_BROKERS
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: REDIS_URL
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: analytics-models
+        configMap:
+          name: analytics-ml-models
+      - name: analytics-config
+        configMap:
+          name: analytics-engine-config
+      - name: analytics-logs
+        emptyDir: {}
+
+---
+# Executive Success Dashboard
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: executive-success-dashboard
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: executive-success-dashboard
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: executive-success-dashboard
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: executive-success-dashboard
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: success-analytics-service-account
+      
+      containers:
+      - name: executive-dashboard
+        image: gemini-salon/executive-success-dashboard:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: websocket
+          containerPort: 8087
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+        
+        env:
+        # Dashboard Configuration
+        - name: DASHBOARD_TYPE
+          value: "executive_customer_success"
+        - name: REAL_TIME_UPDATES
+          value: "true"
+        - name: PREDICTIVE_INSIGHTS
+          value: "true"
+        - name: DRILL_DOWN_ANALYTICS
+          value: "true"
+        
+        # Executive Metrics
+        - name: EXECUTIVE_METRICS
+          value: "customer_health_score,revenue_impact,churn_risk,expansion_opportunities,roi_optimization"
+        - name: STRATEGIC_INSIGHTS
+          value: "predictive_analytics"
+        - name: COMPETITIVE_BENCHMARKING
+          value: "industry_comparison"
+        
+        # Dashboard Features
+        - name: CUSTOM_REPORTING
+          value: "true"
+        - name: AUTOMATED_INSIGHTS
+          value: "ai_generated"
+        - name: ALERT_INTEGRATION
+          value: "true"
+        - name: EXPORT_CAPABILITIES
+          value: "pdf,excel,powerpoint"
+        
+        # Mobile Optimization
+        - name: MOBILE_RESPONSIVE
+          value: "true"
+        - name: OFFLINE_ACCESS
+          value: "cached_data"
+        - name: PUSH_NOTIFICATIONS
+          value: "executive_alerts"
+        
+        envFrom:
+        - configMapRef:
+            name: executive-dashboard-config
+        
+        env:
+        - name: ANALYTICS_API_URL
+          value: "http://customer-journey-analytics-service:8085"
+        - name: DASHBOARD_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DASHBOARD_DATABASE_URL
+        
+        volumeMounts:
+        - name: dashboard-config
+          mountPath: /app/config
+          readOnly: true
+        - name: report-templates
+          mountPath: /app/templates
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: dashboard-config
+        configMap:
+          name: executive-dashboard-config
+      - name: report-templates
+        configMap:
+          name: executive-report-templates
+
+---
+# Customer Success Intelligence Platform
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-success-intelligence
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: customer-success-intelligence
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: customer-success-intelligence
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: customer-success-intelligence
+    spec:
+      serviceAccountName: success-analytics-service-account
+      
+      containers:
+      - name: success-intelligence
+        image: gemini-salon/customer-success-intelligence:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: ai-api
+          containerPort: 8088
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 600m
+            memory: 1.5Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # AI Intelligence Configuration
+        - name: INTELLIGENCE_TYPE
+          value: "customer_success_ai"
+        - name: AI_MODEL
+          value: "gemini-pro"  # Advanced reasoning for customer intelligence
+        - name: INTELLIGENCE_SCOPE
+          value: "predictive_prescriptive"
+        
+        # AI Capabilities
+        - name: PATTERN_RECOGNITION
+          value: "true"
+        - name: ANOMALY_DETECTION
+          value: "true"
+        - name: TREND_FORECASTING
+          value: "true"
+        - name: RECOMMENDATION_ENGINE
+          value: "true"
+        - name: NATURAL_LANGUAGE_INSIGHTS
+          value: "true"
+        
+        # Customer Success Intelligence
+        - name: HEALTH_SCORE_CALCULATION
+          value: "ml_powered"
+        - name: RISK_ASSESSMENT
+          value: "comprehensive"
+        - name: OPPORTUNITY_IDENTIFICATION
+          value: "proactive"
+        - name: INTERVENTION_OPTIMIZATION
+          value: "ai_recommended"
+        
+        # Advanced Analytics
+        - name: COHORT_INTELLIGENCE
+          value: "true"
+        - name: JOURNEY_OPTIMIZATION
+          value: "ai_powered"
+        - name: SUCCESS_FACTOR_ANALYSIS
+          value: "causal_inference"
+        - name: COMPETITIVE_INTELLIGENCE
+          value: "market_analysis"
+        
+        envFrom:
+        - configMapRef:
+            name: customer-success-intelligence-config
+        
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GEMINI_API_KEY
+        - name: ML_PLATFORM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ML_PLATFORM_API_KEY
+        
+        volumeMounts:
+        - name: intelligence-models
+          mountPath: /app/models
+          readOnly: true
+        - name: intelligence-config
+          mountPath: /app/config
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: intelligence-models
+        configMap:
+          name: customer-intelligence-models
+      - name: intelligence-config
+        configMap:
+          name: intelligence-platform-config
+
+---
+# ROI Optimization Engine
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: roi-optimization-engine
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: roi-optimization-engine
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: roi-optimization-engine
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: roi-optimization-engine
+    spec:
+      serviceAccountName: success-analytics-service-account
+      
+      containers:
+      - name: roi-optimizer
+        image: gemini-salon/roi-optimization-engine:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+        
+        env:
+        # ROI Optimization Configuration
+        - name: OPTIMIZATION_ENGINE_TYPE
+          value: "enterprise_roi_maximization"
+        - name: OPTIMIZATION_SCOPE
+          value: "voice_agent_business_impact"
+        - name: CALCULATION_FREQUENCY
+          value: "real_time"
+        
+        # ROI Calculation Components
+        - name: COST_TRACKING
+          value: "comprehensive"
+        - name: REVENUE_ATTRIBUTION
+          value: "multi_touch"
+        - name: EFFICIENCY_MEASUREMENT
+          value: "operational_optimization"
+        - name: SAVINGS_CALCULATION
+          value: "receptionist_replacement_plus"
+        
+        # Business Impact Metrics
+        - name: CUSTOMER_LIFETIME_VALUE_TRACKING
+          value: "true"
+        - name: OPERATIONAL_EFFICIENCY_METRICS
+          value: "true"
+        - name: STAFF_PRODUCTIVITY_IMPACT
+          value: "true"
+        - name: CUSTOMER_SATISFACTION_CORRELATION
+          value: "true"
+        
+        # Optimization Recommendations
+        - name: AUTOMATED_OPTIMIZATION_SUGGESTIONS
+          value: "true"
+        - name: CONFIGURATION_RECOMMENDATIONS
+          value: "ai_powered"
+        - name: WORKFLOW_OPTIMIZATION
+          value: "efficiency_focused"
+        - name: RESOURCE_ALLOCATION_OPTIMIZATION
+          value: "roi_maximized"
+        
+        envFrom:
+        - configMapRef:
+            name: roi-optimization-config
+        
+        env:
+        - name: BUSINESS_METRICS_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: BUSINESS_METRICS_DATABASE_URL
+        
+        volumeMounts:
+        - name: roi-models
+          mountPath: /app/models
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: roi-models
+        configMap:
+          name: roi-optimization-models
+
+---
+# Services for Success Metrics Components
+
+# Customer Journey Analytics Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-journey-analytics-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: customer-journey-analytics
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: analytics-api
+    port: 8085
+    targetPort: 8085
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: customer-journey-analytics
+
+---
+# Executive Success Dashboard Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: executive-success-dashboard-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: executive-success-dashboard
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: websocket
+    port: 8087
+    targetPort: 8087
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: executive-success-dashboard
+
+---
+# Customer Success Intelligence Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-success-intelligence-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: customer-success-intelligence
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: ai-api
+    port: 8088
+    targetPort: 8088
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: customer-success-intelligence
+
+---
+# ROI Optimization Engine Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: roi-optimization-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: roi-optimization-engine
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: roi-optimization-engine
+
+---
+# HPA for Success Metrics Components
+
+# Customer Journey Analytics HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: customer-journey-analytics-hpa
+  namespace: gemini-salon
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: customer-journey-analytics-engine
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: analytics_processing_queue_depth_per_pod
+      target:
+        type: AverageValue
+        averageValue: "100"  # Scale when >100 queued analytics events per pod
+
+---
+# Executive Dashboard HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: executive-dashboard-hpa
+  namespace: gemini-salon
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: executive-success-dashboard
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: active_dashboard_users_per_pod
+      target:
+        type: AverageValue
+        averageValue: "25"  # Scale when >25 active users per pod
+
+---
+# RBAC for Success Analytics
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: success-analytics-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: success-analytics
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: success-analytics-role
+rules:
+# Allow reading analytics configurations
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Allow creating analytics events
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+# Allow reading service metrics
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+# Allow reading deployment metrics for scaling analytics
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: success-analytics-role-binding
+  namespace: gemini-salon
+subjects:
+- kind: ServiceAccount
+  name: success-analytics-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: success-analytics-role
+  apiGroup: rbac.authorization.k8s.io

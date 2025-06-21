@@ -1,0 +1,598 @@
+# GDPR Compliance Infrastructure
+# Comprehensive data protection and privacy compliance for EU operations
+
+---
+# Data Anonymization Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-anonymization-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: data-anonymization
+    tier: compliance
+    version: "1.0.0"
+  annotations:
+    description: "GDPR data anonymization and pseudonymization service"
+    compliance.gdpr/purpose: "data-protection"
+    compliance.gdpr/lawful-basis: "legitimate-interest"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: data-anonymization
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: data-anonymization
+        tier: compliance
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gdpr-compliance-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: data-anonymization
+        image: gemini-salon/data-anonymization:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: ANONYMIZATION_SCHEDULE
+          value: "0 2 * * *"  # Daily at 2 AM
+        - name: RETENTION_CHECK_SCHEDULE
+          value: "0 3 * * *"  # Daily at 3 AM
+        - name: AUDIT_LOG_ENABLED
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: gdpr-compliance-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GDPR_ENCRYPTION_KEY
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        volumeMounts:
+        - name: audit-logs
+          mountPath: /app/logs/audit
+        - name: temp-processing
+          mountPath: /tmp/processing
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: audit-logs
+        persistentVolumeClaim:
+          claimName: gdpr-audit-logs-pvc
+      - name: temp-processing
+        emptyDir:
+          sizeLimit: 1Gi
+      
+      terminationGracePeriodSeconds: 60
+
+---
+# GDPR Audit Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gdpr-audit-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-audit
+    tier: compliance
+    version: "1.0.0"
+  annotations:
+    description: "GDPR audit logging and compliance monitoring service"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Stateful audit service
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: gdpr-audit
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: gdpr-audit
+        tier: compliance
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gdpr-compliance-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1002
+        runAsGroup: 1002
+        fsGroup: 1002
+      
+      containers:
+      - name: gdpr-audit
+        image: gemini-salon/gdpr-audit:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: AUDIT_RETENTION_DAYS
+          value: "2555"  # 7 years for GDPR compliance
+        - name: LOG_LEVEL
+          value: "info"
+        - name: LOG_FORMAT
+          value: "json"
+        
+        envFrom:
+        - configMapRef:
+            name: gdpr-compliance-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: AUDIT_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: AUDIT_ENCRYPTION_KEY
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        volumeMounts:
+        - name: audit-storage
+          mountPath: /app/audit-storage
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: audit-storage
+        persistentVolumeClaim:
+          claimName: gdpr-audit-storage-pvc
+      
+      terminationGracePeriodSeconds: 30
+
+---
+# Data Subject Rights Service (GDPR Art. 15-22)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-subject-rights-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: data-subject-rights
+    tier: compliance
+    version: "1.0.0"
+  annotations:
+    description: "GDPR Data Subject Rights implementation (Access, Rectification, Erasure, Portability)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: data-subject-rights
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: data-subject-rights
+        tier: compliance
+        version: "1.0.0"
+    spec:
+      serviceAccountName: gdpr-compliance-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1003
+        runAsGroup: 1003
+        fsGroup: 1003
+      
+      containers:
+      - name: data-subject-rights
+        image: gemini-salon/data-subject-rights:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: REQUEST_TIMEOUT
+          value: "72h"  # GDPR requires response within 72 hours
+        - name: VERIFICATION_REQUIRED
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: gdpr-compliance-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GDPR_ENCRYPTION_KEY
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Services for GDPR Compliance
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-anonymization-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: data-anonymization
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: data-anonymization
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gdpr-audit-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-audit
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: gdpr-audit
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-subject-rights-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: data-subject-rights
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: data-subject-rights
+
+---
+# GDPR Compliance Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gdpr-compliance-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-compliance
+data:
+  # Data Classification
+  DATA_CLASSIFICATION_PERSONAL: "name,email,phone,address,voice_recording"
+  DATA_CLASSIFICATION_SENSITIVE: "health_data,biometric_data"
+  DATA_CLASSIFICATION_MARKETING: "preferences,campaign_data"
+  
+  # Retention Policies (in days)
+  RETENTION_VOICE_RECORDINGS: "30"      # Voice recordings kept for 30 days max
+  RETENTION_BOOKING_DATA: "365"         # Booking data for 1 year
+  RETENTION_MARKETING_DATA: "730"       # Marketing data for 2 years
+  RETENTION_AUDIT_LOGS: "2555"          # Audit logs for 7 years
+  RETENTION_FINANCIAL_DATA: "3650"      # Financial data for 10 years
+  
+  # Anonymization Settings
+  ANONYMIZATION_ENABLED: "true"
+  ANONYMIZATION_ALGORITHM: "k-anonymity"
+  ANONYMIZATION_K_VALUE: "5"
+  PSEUDONYMIZATION_ENABLED: "true"
+  
+  # Data Subject Rights
+  DSR_AUTO_RESPONSE_ENABLED: "true"
+  DSR_VERIFICATION_REQUIRED: "true"
+  DSR_RESPONSE_TIME_HOURS: "72"
+  DSR_CONTACT_EMAIL: "privacy@geminisalon.ai"
+  
+  # Consent Management
+  CONSENT_TRACKING_ENABLED: "true"
+  CONSENT_GRANULAR_ENABLED: "true"
+  CONSENT_WITHDRAWAL_ENABLED: "true"
+  
+  # Data Processing Purposes
+  PURPOSE_SERVICE_DELIVERY: "true"
+  PURPOSE_ANALYTICS: "opt-in"
+  PURPOSE_MARKETING: "opt-in"
+  PURPOSE_RESEARCH: "opt-in"
+  
+  # Data Minimization
+  DATA_MINIMIZATION_ENABLED: "true"
+  AUTOMATIC_DELETION_ENABLED: "true"
+  
+  # Cross-Border Transfer
+  TRANSFER_MECHANISM: "adequacy-decision"  # EU adequacy decision
+  TRANSFER_SAFEGUARDS: "standard-contractual-clauses"
+  
+  # Breach Notification
+  BREACH_NOTIFICATION_ENABLED: "true"
+  BREACH_NOTIFICATION_AUTHORITY: "de-supervisory-authority"
+  BREACH_NOTIFICATION_TIME_HOURS: "72"
+  
+  # Privacy by Design
+  PRIVACY_BY_DESIGN_ENABLED: "true"
+  PRIVACY_BY_DEFAULT_ENABLED: "true"
+  PRIVACY_IMPACT_ASSESSMENT_REQUIRED: "true"
+
+---
+# GDPR Storage Claims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gdpr-audit-logs-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-compliance
+  annotations:
+    description: "GDPR audit logs storage - 7 year retention"
+    retention-period: "2555d"
+    encryption-required: "true"
+    backup-required: "true"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gdpr-audit-storage-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-compliance
+  annotations:
+    description: "GDPR audit service storage"
+    encryption-required: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# RBAC for GDPR Compliance Services
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gdpr-compliance-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-compliance
+  annotations:
+    description: "Service account for GDPR compliance services"
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: gdpr-compliance-role
+  labels:
+    app: gemini-salon
+    component: gdpr-compliance
+rules:
+# Allow reading secrets for encryption keys
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+  resourceNames: ["gemini-salon-secrets"]
+# Allow reading configmaps
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+  resourceNames: ["gdpr-compliance-config"]
+# Allow reading pods for compliance monitoring
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gdpr-compliance-role-binding
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: gdpr-compliance
+subjects:
+- kind: ServiceAccount
+  name: gdpr-compliance-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: gdpr-compliance-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,567 @@
+# Advanced Auto-scaling and Performance Optimization
+# Enterprise-grade scaling with custom metrics and optimization
+
+---
+# Custom Metrics Server for Voice-Specific Scaling
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-metrics-server
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: custom-metrics-server
+    tier: performance
+    version: "1.0.0"
+  annotations:
+    description: "Custom metrics collection for voice-specific auto-scaling"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: custom-metrics-server
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: custom-metrics-server
+        tier: performance
+        version: "1.0.0"
+    spec:
+      serviceAccountName: custom-metrics-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1011
+        runAsGroup: 1011
+        fsGroup: 1011
+      
+      containers:
+      - name: custom-metrics-server
+        image: gemini-salon/custom-metrics-server:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: METRICS_COLLECTION_INTERVAL
+          value: "15000"  # 15 seconds for responsive scaling
+        - name: VOICE_METRICS_ENABLED
+          value: "true"
+        - name: BUSINESS_METRICS_ENABLED
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: autoscaling-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Advanced HPA with Custom Metrics for Voice Gateway
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: voice-gateway-advanced-hpa
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-gateway
+    tier: autoscaling
+  annotations:
+    description: "Advanced HPA with voice-specific metrics and enterprise scaling"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: voice-gateway-deployment
+  minReplicas: 3    # Minimum for enterprise HA
+  maxReplicas: 50   # Scale to enterprise volume
+  
+  metrics:
+  # Standard resource metrics
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60  # Conservative for voice processing
+  
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
+  
+  # Custom voice-specific metrics
+  - type: Pods
+    pods:
+      metric:
+        name: active_voice_calls_per_pod
+      target:
+        type: AverageValue
+        averageValue: "30"  # Scale when > 30 active calls per pod
+  
+  - type: Pods
+    pods:
+      metric:
+        name: websocket_connections_per_pod
+      target:
+        type: AverageValue
+        averageValue: "150"  # Scale when > 150 connections per pod
+  
+  - type: Pods
+    pods:
+      metric:
+        name: voice_processing_queue_depth
+      target:
+        type: AverageValue
+        averageValue: "10"  # Scale when queue depth > 10
+  
+  - type: Pods
+    pods:
+      metric:
+        name: response_time_95th_percentile_ms
+      target:
+        type: AverageValue
+        averageValue: "1500"  # Scale when response time > 1.5s
+  
+  # Business metrics for enterprise scaling
+  - type: Object
+    object:
+      metric:
+        name: enterprise_customer_load
+      target:
+        type: Value
+        value: "80"  # Scale when enterprise load > 80%
+  
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30   # Very responsive for voice
+      policies:
+      - type: Percent
+        value: 100  # Double pods quickly for voice spikes
+        periodSeconds: 30
+      - type: Pods
+        value: 5    # Add up to 5 pods at once
+        periodSeconds: 30
+      selectPolicy: Max  # Use the more aggressive policy
+    
+    scaleDown:
+      stabilizationWindowSeconds: 180  # Slower scale-down to prevent oscillation
+      policies:
+      - type: Percent
+        value: 10   # Remove 10% gradually
+        periodSeconds: 60
+      - type: Pods
+        value: 2    # Remove max 2 pods at once
+        periodSeconds: 60
+      selectPolicy: Min  # Use the more conservative policy
+
+---
+# Vertical Pod Autoscaler for Resource Optimization
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: voice-gateway-vpa
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-gateway
+    tier: autoscaling
+  annotations:
+    description: "VPA for optimal resource allocation based on actual usage"
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: voice-gateway-deployment
+  updatePolicy:
+    updateMode: "Auto"  # Automatically apply recommendations
+  resourcePolicy:
+    containerPolicies:
+    - containerName: voice-gateway
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      maxAllowed:
+        cpu: 4000m  # 4 CPU cores max
+        memory: 8Gi # 8GB RAM max
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+
+---
+# Advanced HPA for Notifier Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: notifier-advanced-hpa
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: notifier
+    tier: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: notifier-deployment
+  minReplicas: 2
+  maxReplicas: 20
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  
+  - type: Pods
+    pods:
+      metric:
+        name: websocket_events_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"  # Events per second per pod
+  
+  - type: Pods
+    pods:
+      metric:
+        name: connection_pool_utilization_percent
+      target:
+        type: AverageValue
+        averageValue: "80"  # Scale when pool > 80% utilized
+  
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 3
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 15
+        periodSeconds: 60
+
+---
+# Performance-Based Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: voice-gateway-performance-pdb
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-gateway
+    tier: performance
+  annotations:
+    description: "Performance-aware PDB ensuring SLA compliance during disruptions"
+spec:
+  minAvailable: 60%  # Ensure 60% of pods always available for performance
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: voice-gateway
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notifier-performance-pdb
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: notifier
+    tier: performance
+spec:
+  minAvailable: 1  # Always keep at least 1 pod for real-time events
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: notifier
+
+---
+# Node Auto-Provisioner for Dynamic Infrastructure Scaling
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: cluster-autoscaler
+data:
+  cluster-autoscaler-config.yaml: |
+    # Cluster Autoscaler Configuration for Performance Optimization
+    nodes:
+      min: 3      # Minimum nodes for HA
+      max: 20     # Maximum nodes for enterprise scale
+      
+    node-groups:
+      - name: voice-processing-nodes
+        instance-types: ["c5.2xlarge", "c5.4xlarge"]  # CPU-optimized
+        min-size: 2
+        max-size: 10
+        labels:
+          node-type: voice-processing
+          performance-tier: premium
+        taints:
+          - key: voice-processing
+            value: dedicated
+            effect: NoSchedule
+      
+      - name: general-workload-nodes
+        instance-types: ["m5.large", "m5.xlarge", "m5.2xlarge"]
+        min-size: 1
+        max-size: 8
+        labels:
+          node-type: general
+          performance-tier: standard
+    
+    scaling-policies:
+      scale-down-delay-after-add: "10m"
+      scale-down-unneeded-time: "10m"
+      scale-down-utilization-threshold: 0.5
+      skip-nodes-with-local-storage: false
+      skip-nodes-with-system-pods: false
+      max-node-provision-time: "15m"
+      
+    performance-optimization:
+      prioritize-cpu-nodes: true
+      balance-similar-node-groups: true
+      skip-nodes-with-high-memory-usage: true
+      node-ready-timeout: "20m"
+
+---
+# Custom Metrics Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: custom-metrics-server-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: custom-metrics-server
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: custom-metrics-server
+
+---
+# Auto-scaling Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: autoscaling-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: autoscaling
+data:
+  # Voice-Specific Metrics
+  VOICE_CALL_THRESHOLD: "30"          # Max calls per pod before scaling
+  WEBSOCKET_CONNECTION_THRESHOLD: "150" # Max connections per pod
+  VOICE_QUEUE_DEPTH_THRESHOLD: "10"   # Max queue depth before scaling
+  RESPONSE_TIME_THRESHOLD_MS: "1500"   # Scale when response > 1.5s
+  
+  # Business Metrics for Enterprise
+  ENTERPRISE_LOAD_THRESHOLD: "80"     # Scale when enterprise load > 80%
+  REVENUE_IMPACT_SCALING: "true"      # Scale based on revenue-generating traffic
+  PREMIUM_CUSTOMER_PRIORITY: "true"   # Prioritize Enterprise customers
+  
+  # Scaling Behavior
+  AGGRESSIVE_SCALE_UP: "true"         # Quick scale-up for voice workloads
+  CONSERVATIVE_SCALE_DOWN: "true"     # Gradual scale-down to prevent disruption
+  PREDICTIVE_SCALING: "true"          # Scale based on traffic patterns
+  
+  # Performance Targets
+  TARGET_CPU_UTILIZATION: "60"        # Conservative for voice processing
+  TARGET_MEMORY_UTILIZATION: "70"     # Balanced memory usage
+  TARGET_RESPONSE_TIME_MS: "1000"     # Target 1s response time
+  TARGET_UPTIME_PERCENT: "99.5"       # Enterprise SLA target
+  
+  # Resource Optimization
+  RESOURCE_RECOMMENDATION_ENABLED: "true"
+  CPU_REQUEST_OPTIMIZATION: "true"
+  MEMORY_REQUEST_OPTIMIZATION: "true"
+  STORAGE_OPTIMIZATION: "true"
+  
+  # Cost Optimization
+  SPOT_INSTANCE_ENABLED: "false"      # No spot instances for production voice
+  RESERVED_INSTANCE_PRIORITY: "true"  # Use reserved instances first
+  RIGHT_SIZING_ENABLED: "true"        # Optimize instance sizes
+  
+  # Geographic Scaling
+  EU_REGION_PRIORITY: "true"          # Prioritize EU regions for GDPR
+  LATENCY_BASED_SCALING: "true"       # Scale based on regional latency
+  MULTI_AZ_SCALING: "true"           # Scale across availability zones
+
+---
+# RBAC for Custom Metrics and Auto-scaling
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-metrics-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: custom-metrics
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: custom-metrics-cluster-role
+  labels:
+    app: gemini-salon
+    component: custom-metrics
+rules:
+# Allow reading nodes and pods for metrics collection
+- apiGroups: [""]
+  resources: ["nodes", "pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+# Allow reading deployment metrics
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+# Allow reading HPA and VPA resources
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["autoscaling.k8s.io"]
+  resources: ["verticalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+# Allow custom metrics API
+- apiGroups: ["custom.metrics.k8s.io"]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: custom-metrics-cluster-role-binding
+  labels:
+    app: gemini-salon
+    component: custom-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: custom-metrics-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: custom-metrics-service-account
+  namespace: gemini-salon
+
+---
+# Performance Testing CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: performance-benchmark
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: performance-testing
+spec:
+  schedule: "0 4 * * 0"  # Weekly performance benchmark
+  timeZone: "Europe/Berlin"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600  # 1 hour timeout
+      template:
+        spec:
+          serviceAccountName: gemini-salon-service-account
+          restartPolicy: OnFailure
+          containers:
+          - name: performance-test
+            image: gemini-salon/performance-tester:1.0.0
+            command: ["/app/scripts/benchmark.sh"]
+            env:
+            - name: TARGET_ENDPOINTS
+              value: "voice-gateway,notifier,frontend"
+            - name: LOAD_TEST_DURATION
+              value: "300"  # 5 minutes
+            - name: CONCURRENT_USERS
+              value: "1000"
+            - name: TARGET_RPS
+              value: "100"
+            envFrom:
+            - configMapRef:
+                name: performance-config
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 2000m
+                memory: 4Gi

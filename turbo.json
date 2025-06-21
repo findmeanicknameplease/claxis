@@ -1,0 +1,56 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "NODE_ENV",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+      ]
+    },
+    "dev": {
+      "persistent": true,
+      "cache": false,
+      "env": [
+        "NODE_ENV",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "WHATSAPP_WEBHOOK_VERIFY_TOKEN",
+        "WHATSAPP_ACCESS_TOKEN"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "cache": true,
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "cache": true,
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "env": ["NODE_ENV"],
+      "outputs": ["coverage/**"]
+    },
+    "test:watch": {
+      "persistent": true,
+      "cache": false
+    },
+    "test:coverage": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "outputs": ["coverage/**"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

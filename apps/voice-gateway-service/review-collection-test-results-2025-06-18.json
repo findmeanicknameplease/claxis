@@ -1,0 +1,65 @@
+{
+  "timestamp": "2025-06-18T23:53:28.371Z",
+  "testConfig": {
+    "voiceGatewayUrl": "http://localhost:3001",
+    "n8nWebhookUrl": "https://n8n.yourdomain.com/webhook/review-trigger",
+    "testSalonId": "123e4567-e89b-12d3-a456-426614174000",
+    "testPhoneNumber": "+31612345678"
+  },
+  "summary": {
+    "total": 7,
+    "passed": 3,
+    "failed": 4,
+    "successRate": 43,
+    "results": [
+      {
+        "name": "n8n Review Workflow Structure Validation",
+        "status": "PASS",
+        "result": {
+          "success": true,
+          "nodeCount": 11
+        }
+      },
+      {
+        "name": "Database Schema Validation",
+        "status": "PASS",
+        "result": {
+          "success": true,
+          "skipped": true,
+          "reason": "Supabase credentials not configured - skipping database tests",
+          "note": "This is expected in development environment"
+        }
+      },
+      {
+        "name": "Voice Gateway Service Health Check",
+        "status": "FAIL",
+        "result": "Voice Gateway Service is not running or not accessible"
+      },
+      {
+        "name": "Review Request Endpoint Validation",
+        "status": "FAIL",
+        "result": "Review request endpoint error: connect ECONNREFUSED 127.0.0.1:3001"
+      },
+      {
+        "name": "Multilingual Review Script Support",
+        "status": "FAIL",
+        "result": "Multilingual support test error: connect ECONNREFUSED 127.0.0.1:3001"
+      },
+      {
+        "name": "Consent System Validation",
+        "status": "FAIL",
+        "result": "Consent system test error: connect ECONNREFUSED 127.0.0.1:3001"
+      },
+      {
+        "name": "n8n Webhook Integration (Mock)",
+        "status": "PASS",
+        "result": {
+          "success": true,
+          "webhookStructure": "valid",
+          "requiredFields": 3,
+          "providedFields": 8
+        }
+      }
+    ]
+  }
+}

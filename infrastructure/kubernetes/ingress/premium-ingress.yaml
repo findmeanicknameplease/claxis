@@ -1,0 +1,383 @@
+# NGINX Ingress Controller Configuration for Premium SaaS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gemini-salon-ingress
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: ingress
+    tier: network
+  annotations:
+    # NGINX Ingress Controller
+    kubernetes.io/ingress.class: "nginx"
+    
+    # SSL Configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256,ECDHE-RSA-AES128-GCM-SHA256,ECDHE-ECDSA-AES256-GCM-SHA384,ECDHE-RSA-AES256-GCM-SHA384,ECDHE-ECDSA-CHACHA20-POLY1305,ECDHE-RSA-CHACHA20-POLY1305,DHE-RSA-AES128-GCM-SHA256,DHE-RSA-AES256-GCM-SHA384"
+    
+    # Performance Optimizations
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/upstream-keepalive-connections: "32"
+    nginx.ingress.kubernetes.io/upstream-keepalive-time: "60s"
+    
+    # WebSocket Support for Voice Services
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/connection-upgrade: "upgrade"
+    nginx.ingress.kubernetes.io/upgrade: "websocket"
+    
+    # Security Headers
+    nginx.ingress.kubernetes.io/custom-http-errors: "400,401,403,404,405,407,408,409,410,411,412,413,414,415,416,417,418,421,422,423,424,426,428,429,431,451,500,501,502,503,504,505,506,507,508,510,511"
+    nginx.ingress.kubernetes.io/default-backend: "default-http-backend"
+    
+    # Rate Limiting for Premium Protection
+    nginx.ingress.kubernetes.io/rate-limit-connections: "20"
+    nginx.ingress.kubernetes.io/rate-limit-rps: "10"
+    nginx.ingress.kubernetes.io/rate-limit-rpm: "100"
+    
+    # CORS Configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://app.geminisalon.ai,https://admin.geminisalon.ai"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    
+    # Body Size Limits
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "1m"
+    
+    # Compression
+    nginx.ingress.kubernetes.io/gzip-types: "application/json,application/javascript,text/css,text/plain,text/xml,application/xml,application/xml+rss"
+    
+    # Custom Headers for Premium Analytics
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' wss: https:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';";
+      more_set_headers "X-Service-Tier: Premium";
+      more_set_headers "X-Response-Time: $request_time";
+      
+    # Logging for GDPR Compliance
+    nginx.ingress.kubernetes.io/server-snippet: |
+      access_log /var/log/nginx/gemini-salon-access.log json_combined;
+      error_log /var/log/nginx/gemini-salon-error.log warn;
+
+spec:
+  tls:
+  - hosts:
+    - api.geminisalon.ai
+    - voice.geminisalon.ai
+    - events.geminisalon.ai
+    - app.geminisalon.ai
+    secretName: gemini-salon-tls
+  
+  rules:
+  # Main API Endpoint
+  - host: api.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: voice-gateway-service
+            port:
+              number: 8080
+      - path: /api/bff
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 3000
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: voice-gateway-service
+            port:
+              number: 8082
+  
+  # Voice Services Endpoint
+  - host: voice.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: voice-gateway-service
+            port:
+              number: 8081
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: voice-gateway-service
+            port:
+              number: 8082
+  
+  # Real-time Events Endpoint
+  - host: events.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: notifier-service
+            port:
+              number: 3001
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: notifier-service
+            port:
+              number: 3003
+  
+  # Frontend Application
+  - host: app.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 3000
+
+---
+# Admin Ingress for Internal Services
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gemini-salon-admin-ingress
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: admin-ingress
+    tier: network
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # IP Whitelist for Admin Access
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/16,192.168.0.0/16"
+    
+    # Basic Auth for Additional Security
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "admin-auth"
+    nginx.ingress.kubernetes.io/auth-realm: "Gemini Salon AI - Admin Access"
+    
+    # Custom error pages
+    nginx.ingress.kubernetes.io/custom-http-errors: "401,403,404,500,502,503,504"
+    
+spec:
+  tls:
+  - hosts:
+    - admin.geminisalon.ai
+    - n8n.geminisalon.ai
+    - grafana.geminisalon.ai
+    - prometheus.geminisalon.ai
+    secretName: gemini-salon-admin-tls
+  
+  rules:
+  # Admin Dashboard
+  - host: admin.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-service
+            port:
+              number: 3000
+  
+  # n8n Workflows Management
+  - host: n8n.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: n8n-service
+            port:
+              number: 5678
+  
+  # Grafana Monitoring
+  - host: grafana.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-service
+            port:
+              number: 3000
+  
+  # Prometheus Metrics
+  - host: prometheus.geminisalon.ai
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-service
+            port:
+              number: 9090
+
+---
+# Default Backend for Custom Error Pages
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: default-http-backend
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: default-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: default-backend
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: default-backend
+    spec:
+      containers:
+      - name: default-backend
+        image: gcr.io/google_containers/defaultbackend:1.4
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 10m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: default-http-backend
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: default-backend
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: gemini-salon
+    component: default-backend
+
+---
+# Network Policy for Premium Security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gemini-salon-network-policy
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: gemini-salon
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow ingress from nginx controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 3000
+  
+  # Allow internal service communication
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 3002
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 5678
+  
+  egress:
+  # Allow egress to external services
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 80   # HTTP
+    - protocol: TCP
+      port: 5432 # PostgreSQL
+    - protocol: TCP
+      port: 53   # DNS
+    - protocol: UDP
+      port: 53   # DNS
+  
+  # Allow internal service communication
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gemini-salon

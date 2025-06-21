@@ -1,0 +1,38 @@
+services:
+  # WhatsApp Webhook Service - Minimal deployment just for webhooks
+  - type: web
+    name: gemini-salon-webhook
+    runtime: node
+    region: frankfurt # EU region for GDPR compliance
+    plan: free # Start with free tier
+    
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    
+    envVars:
+      - key: NODE_ENV
+        value: production
+      
+      # WhatsApp Configuration
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false # Set in Render dashboard
+      - key: WHATSAPP_APP_SECRET
+        sync: false # Set in Render dashboard
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false # Set in Render dashboard
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false # Set in Render dashboard
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false # Set in Render dashboard
+      
+      # NextAuth (required for app to start)
+      - key: NEXTAUTH_URL
+        value: https://gemini-salon-webhook.onrender.com
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      
+      # Minimal Supabase config (required for app to start)
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false

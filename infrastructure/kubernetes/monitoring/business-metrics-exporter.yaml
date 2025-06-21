@@ -1,0 +1,493 @@
+# Business Metrics Exporter - Custom KPIs for Premium SaaS
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: business-metrics-exporter
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-metrics-exporter
+    tier: monitoring
+    version: "1.0.0"
+  annotations:
+    description: "Custom business metrics exporter for premium SaaS analytics"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: business-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: business-metrics-exporter
+        tier: monitoring
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: business-metrics-exporter
+        image: gemini-salon/business-metrics-exporter:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: METRICS_COLLECTION_INTERVAL
+          value: "60000"  # 1 minute
+        - name: DATABASE_QUERY_TIMEOUT
+          value: "30000"  # 30 seconds
+        
+        envFrom:
+        - configMapRef:
+            name: gemini-salon-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        ports:
+        - name: metrics
+          containerPort: 8080
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      
+      terminationGracePeriodSeconds: 30
+
+---
+# Service for Business Metrics Exporter
+apiVersion: v1
+kind: Service
+metadata:
+  name: business-metrics-exporter-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-metrics-exporter
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: health
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: business-metrics-exporter
+
+---
+# ConfigMap for Business Metrics Queries
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: business-metrics-queries
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-metrics-exporter
+data:
+  metrics-config.json: |
+    {
+      "collection_interval": 60000,
+      "metrics": {
+        "revenue_metrics": {
+          "monthly_recurring_revenue": {
+            "query": "SELECT tier, SUM(subscription_amount) as mrr FROM salons WHERE active = true GROUP BY tier",
+            "metric_name": "salon_subscription_amount",
+            "metric_type": "gauge",
+            "labels": ["tier"],
+            "help": "Monthly recurring revenue by subscription tier"
+          },
+          "daily_revenue": {
+            "query": "SELECT DATE(created_at) as date, SUM(amount) as revenue FROM transactions WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(created_at)",
+            "metric_name": "daily_revenue_total",
+            "metric_type": "gauge",
+            "labels": ["date"],
+            "help": "Daily revenue over the last 30 days"
+          }
+        },
+        
+        "voice_metrics": {
+          "call_volume": {
+            "query": "SELECT salon_id, COUNT(*) as call_count FROM voice_calls WHERE created_at >= NOW() - INTERVAL '1 hour' GROUP BY salon_id",
+            "metric_name": "voice_calls_total",
+            "metric_type": "counter",
+            "labels": ["salon_id"],
+            "help": "Total voice calls by salon"
+          },
+          "call_success_rate": {
+            "query": "SELECT salon_id, COUNT(*) FILTER (WHERE status = 'completed') as successful, COUNT(*) as total FROM voice_calls WHERE created_at >= NOW() - INTERVAL '1 hour' GROUP BY salon_id",
+            "metric_name": "voice_calls_successful_total",
+            "metric_type": "counter",
+            "labels": ["salon_id"],
+            "help": "Successful voice calls by salon"
+          },
+          "language_detection": {
+            "query": "SELECT detected_language, COUNT(*) FILTER (WHERE language_correct = true) as correct, COUNT(*) as total FROM voice_calls WHERE created_at >= NOW() - INTERVAL '1 hour' GROUP BY detected_language",
+            "metric_name": "language_detection_accuracy",
+            "metric_type": "gauge",
+            "labels": ["language"],
+            "help": "Language detection accuracy by language"
+          },
+          "voice_quality": {
+            "query": "SELECT AVG(quality_score) as avg_quality FROM voice_calls WHERE created_at >= NOW() - INTERVAL '1 hour' AND quality_score IS NOT NULL",
+            "metric_name": "voice_quality_score",
+            "metric_type": "gauge",
+            "labels": [],
+            "help": "Average voice quality score"
+          }
+        },
+        
+        "business_conversion": {
+          "booking_funnel": {
+            "query": "SELECT 'voice_calls' as stage, COUNT(*) as count FROM voice_calls WHERE created_at >= NOW() - INTERVAL '1 hour' UNION ALL SELECT 'booking_intent' as stage, COUNT(*) as count FROM voice_calls WHERE booking_intent_detected = true AND created_at >= NOW() - INTERVAL '1 hour' UNION ALL SELECT 'booking_started' as stage, COUNT(*) as count FROM booking_attempts WHERE created_at >= NOW() - INTERVAL '1 hour' UNION ALL SELECT 'booking_completed' as stage, COUNT(*) as count FROM bookings WHERE created_at >= NOW() - INTERVAL '1 hour'",
+            "metric_name": "booking_funnel_total",
+            "metric_type": "gauge",
+            "labels": ["stage"],
+            "help": "Booking conversion funnel metrics"
+          },
+          "customer_satisfaction": {
+            "query": "SELECT salon_id, AVG(rating) as avg_rating FROM customer_feedback WHERE created_at >= NOW() - INTERVAL '1 day' GROUP BY salon_id",
+            "metric_name": "customer_satisfaction_score",
+            "metric_type": "gauge",
+            "labels": ["salon_id"],
+            "help": "Average customer satisfaction score by salon"
+          }
+        },
+        
+        "enterprise_metrics": {
+          "enterprise_health": {
+            "query": "SELECT salon_id, COUNT(*) FILTER (WHERE success = false) as failures FROM api_requests WHERE salon_tier = 'enterprise' AND created_at >= NOW() - INTERVAL '1 hour' GROUP BY salon_id",
+            "metric_name": "enterprise_api_failures_total",
+            "metric_type": "counter",
+            "labels": ["salon_id"],
+            "help": "API failures for enterprise customers"
+          },
+          "voice_agent_utilization": {
+            "query": "SELECT salon_id, COUNT(*) as interactions FROM voice_agent_interactions WHERE created_at >= NOW() - INTERVAL '1 hour' GROUP BY salon_id",
+            "metric_name": "voice_agent_interactions_total",
+            "metric_type": "counter",
+            "labels": ["salon_id"],
+            "help": "Voice agent interactions by salon"
+          },
+          "premium_feature_usage": {
+            "query": "SELECT feature_name, COUNT(*) as usage_count FROM feature_usage WHERE salon_tier = 'enterprise' AND created_at >= NOW() - INTERVAL '1 hour' GROUP BY feature_name",
+            "metric_name": "premium_feature_usage_total",
+            "metric_type": "counter",
+            "labels": ["feature"],
+            "help": "Premium feature usage for enterprise tier"
+          }
+        },
+        
+        "operational_metrics": {
+          "active_salons": {
+            "query": "SELECT COUNT(DISTINCT salon_id) as active_count FROM voice_calls WHERE created_at >= NOW() - INTERVAL '1 day'",
+            "metric_name": "active_salons_daily",
+            "metric_type": "gauge",
+            "labels": [],
+            "help": "Number of salons with activity in the last 24 hours"
+          },
+          "churn_risk": {
+            "query": "SELECT salon_id, EXTRACT(days FROM NOW() - MAX(created_at)) as days_since_last_activity FROM voice_calls GROUP BY salon_id HAVING EXTRACT(days FROM NOW() - MAX(created_at)) > 7",
+            "metric_name": "salon_days_inactive",
+            "metric_type": "gauge",
+            "labels": ["salon_id"],
+            "help": "Days since last activity for potentially churning salons"
+          }
+        }
+      }
+    }
+
+---
+# Node.js Application Code for Business Metrics Exporter
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: business-metrics-exporter-code
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-metrics-exporter
+data:
+  package.json: |
+    {
+      "name": "@gemini-salon/business-metrics-exporter",
+      "version": "1.0.0",
+      "description": "Custom business metrics exporter for Prometheus",
+      "main": "index.js",
+      "scripts": {
+        "start": "node index.js",
+        "dev": "nodemon index.js"
+      },
+      "dependencies": {
+        "express": "^4.19.2",
+        "prom-client": "^14.2.0",
+        "pg": "^8.12.0",
+        "winston": "^3.11.0"
+      }
+    }
+  
+  index.js: |
+    const express = require('express');
+    const promClient = require('prom-client');
+    const { Pool } = require('pg');
+    const winston = require('winston');
+    const fs = require('fs');
+    
+    // Initialize logger
+    const logger = winston.createLogger({
+      level: 'info',
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      ),
+      transports: [
+        new winston.transports.Console()
+      ]
+    });
+    
+    // Initialize Prometheus metrics
+    const register = new promClient.Registry();
+    promClient.collectDefaultMetrics({ register });
+    
+    // Database connection
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    });
+    
+    // Metrics storage
+    const metrics = new Map();
+    
+    // Load metrics configuration
+    const metricsConfig = JSON.parse(fs.readFileSync('/etc/config/metrics-config.json', 'utf8'));
+    
+    // Initialize custom metrics based on configuration
+    function initializeMetrics() {
+      for (const [category, categoryMetrics] of Object.entries(metricsConfig.metrics)) {
+        for (const [metricName, config] of Object.entries(categoryMetrics)) {
+          const MetricClass = config.metric_type === 'gauge' ? promClient.Gauge : promClient.Counter;
+          
+          const metric = new MetricClass({
+            name: config.metric_name,
+            help: config.help,
+            labelNames: config.labels || [],
+            registers: [register]
+          });
+          
+          metrics.set(config.metric_name, {
+            metric,
+            config,
+            category
+          });
+          
+          logger.info(`Initialized metric: ${config.metric_name}`, { category, type: config.metric_type });
+        }
+      }
+    }
+    
+    // Collect business metrics from database
+    async function collectBusinessMetrics() {
+      logger.info('Starting business metrics collection');
+      
+      for (const [metricName, { metric, config, category }] of metrics) {
+        try {
+          const startTime = Date.now();
+          const result = await pool.query(config.query);
+          const queryTime = Date.now() - startTime;
+          
+          // Clear existing metric values
+          metric.reset();
+          
+          if (result.rows.length === 0) {
+            logger.warn(`No data returned for metric: ${metricName}`);
+            continue;
+          }
+          
+          // Set metric values based on query results
+          result.rows.forEach(row => {
+            const labels = {};
+            config.labels.forEach(label => {
+              if (row[label] !== undefined) {
+                labels[label] = String(row[label]);
+              }
+            });
+            
+            // Determine value field (common patterns)
+            let value = 0;
+            if (row.count !== undefined) value = parseFloat(row.count);
+            else if (row.total !== undefined) value = parseFloat(row.total);
+            else if (row.amount !== undefined) value = parseFloat(row.amount);
+            else if (row.mrr !== undefined) value = parseFloat(row.mrr);
+            else if (row.revenue !== undefined) value = parseFloat(row.revenue);
+            else if (row.avg_rating !== undefined) value = parseFloat(row.avg_rating);
+            else if (row.avg_quality !== undefined) value = parseFloat(row.avg_quality);
+            else if (row.successful !== undefined) value = parseFloat(row.successful);
+            else if (row.failures !== undefined) value = parseFloat(row.failures);
+            else if (row.interactions !== undefined) value = parseFloat(row.interactions);
+            else if (row.usage_count !== undefined) value = parseFloat(row.usage_count);
+            else if (row.active_count !== undefined) value = parseFloat(row.active_count);
+            else if (row.days_since_last_activity !== undefined) value = parseFloat(row.days_since_last_activity);
+            
+            if (config.metric_type === 'gauge') {
+              metric.set(labels, value);
+            } else {
+              metric.inc(labels, value);
+            }
+          });
+          
+          logger.info(`Collected metric: ${metricName}`, { 
+            category, 
+            rows: result.rows.length, 
+            queryTime: `${queryTime}ms` 
+          });
+          
+        } catch (error) {
+          logger.error(`Error collecting metric: ${metricName}`, { 
+            error: error.message, 
+            category,
+            query: config.query 
+          });
+        }
+      }
+      
+      logger.info('Business metrics collection completed');
+    }
+    
+    // Express app setup
+    const app = express();
+    const port = process.env.PORT || 8080;
+    
+    // Health endpoints
+    app.get('/health', (req, res) => {
+      res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+    });
+    
+    app.get('/ready', (req, res) => {
+      res.json({ status: 'ready', metrics_count: metrics.size });
+    });
+    
+    // Prometheus metrics endpoint
+    app.get('/metrics', async (req, res) => {
+      try {
+        res.set('Content-Type', register.contentType);
+        res.end(await register.metrics());
+      } catch (error) {
+        logger.error('Error serving metrics', { error: error.message });
+        res.status(500).end('Error serving metrics');
+      }
+    });
+    
+    // Initialize and start
+    async function start() {
+      try {
+        // Test database connection
+        await pool.query('SELECT 1');
+        logger.info('Database connection established');
+        
+        // Initialize metrics
+        initializeMetrics();
+        
+        // Start metrics collection interval
+        const collectionInterval = metricsConfig.collection_interval || 60000;
+        setInterval(collectBusinessMetrics, collectionInterval);
+        
+        // Initial collection
+        await collectBusinessMetrics();
+        
+        // Start server
+        app.listen(port, () => {
+          logger.info(`Business metrics exporter started`, { 
+            port, 
+            metrics_count: metrics.size,
+            collection_interval: collectionInterval 
+          });
+        });
+        
+      } catch (error) {
+        logger.error('Failed to start business metrics exporter', { error: error.message });
+        process.exit(1);
+      }
+    }
+    
+    // Graceful shutdown
+    process.on('SIGTERM', async () => {
+      logger.info('Received SIGTERM, shutting down gracefully');
+      await pool.end();
+      process.exit(0);
+    });
+    
+    start();

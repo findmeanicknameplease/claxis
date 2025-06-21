@@ -1,0 +1,893 @@
+# White-Glove Setup & Configuration Automation for Phase 4B
+# Intelligent automation for premium enterprise customer setup
+
+---
+# White-Glove Setup Orchestrator Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: white-glove-setup-orchestrator
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: white-glove-setup-orchestrator
+    tier: enterprise
+    version: "1.0.0"
+  annotations:
+    description: "Intelligent setup orchestration for Enterprise tier white-glove experience"
+    business-value: "Premium automated setup reducing time-to-value to 24 hours"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: white-glove-setup-orchestrator
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: white-glove-setup-orchestrator
+        tier: enterprise
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: white-glove-automation-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: setup-orchestrator
+        image: gemini-salon/white-glove-setup-orchestrator:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc
+          containerPort: 9090
+          protocol: TCP
+        - name: metrics
+          containerPort: 8081
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Setup Orchestration Configuration
+        - name: ORCHESTRATOR_MODE
+          value: "white_glove_premium"
+        - name: AUTOMATION_INTELLIGENCE_LEVEL
+          value: "adaptive_learning"
+        - name: SETUP_PERSONALIZATION_ENABLED
+          value: "true"
+        - name: REAL_TIME_VALIDATION_ENABLED
+          value: "true"
+        
+        # Enterprise Setup Features
+        - name: DEDICATED_INFRASTRUCTURE_PROVISIONING
+          value: "true"
+        - name: CUSTOM_DOMAIN_SETUP
+          value: "true"
+        - name: ENTERPRISE_SSO_CONFIGURATION
+          value: "true"
+        - name: ADVANCED_SECURITY_SETUP
+          value: "true"
+        - name: PERFORMANCE_OPTIMIZATION_SETUP
+          value: "true"
+        
+        # Voice Agent Setup Automation
+        - name: VOICE_AGENT_AUTO_CONFIGURATION
+          value: "true"
+        - name: MULTILINGUAL_VOICE_SETUP
+          value: "true"
+        - name: VOICE_QUALITY_OPTIMIZATION
+          value: "true"
+        - name: BUSINESS_WORKFLOW_INTEGRATION
+          value: "true"
+        
+        # Integration Automation
+        - name: CALENDAR_INTEGRATION_AUTO_SETUP
+          value: "true"
+        - name: WHATSAPP_BUSINESS_AUTO_INTEGRATION
+          value: "true"
+        - name: INSTAGRAM_BUSINESS_AUTO_INTEGRATION
+          value: "true"
+        - name: CRM_INTEGRATION_AUTOMATION
+          value: "true"
+        - name: PAYMENT_SYSTEM_INTEGRATION
+          value: "true"
+        
+        # Setup Validation and Testing
+        - name: AUTOMATED_SETUP_TESTING
+          value: "comprehensive"
+        - name: PERFORMANCE_BENCHMARKING
+          value: "true"
+        - name: SECURITY_VALIDATION
+          value: "true"
+        - name: INTEGRATION_TESTING
+          value: "true"
+        - name: USER_ACCEPTANCE_TESTING
+          value: "guided"
+        
+        envFrom:
+        - configMapRef:
+            name: white-glove-setup-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: KUBERNETES_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: KUBERNETES_API_TOKEN
+        - name: TERRAFORM_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: TERRAFORM_API_TOKEN
+        - name: N8N_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: N8N_API_KEY
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: setup-templates
+          mountPath: /app/templates
+          readOnly: true
+        - name: automation-scripts
+          mountPath: /app/scripts
+          readOnly: true
+        - name: setup-logs
+          mountPath: /app/logs
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      # Configuration Validation Engine
+      - name: configuration-validator
+        image: gemini-salon/configuration-validator:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8082
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Validation Engine Configuration
+        - name: VALIDATOR_TYPE
+          value: "comprehensive_enterprise"
+        - name: REAL_TIME_VALIDATION
+          value: "true"
+        - name: PREDICTIVE_ISSUE_DETECTION
+          value: "true"
+        - name: AUTOMATED_REMEDIATION
+          value: "true"
+        
+        # Validation Scope
+        - name: INFRASTRUCTURE_VALIDATION
+          value: "true"
+        - name: SECURITY_VALIDATION
+          value: "true"
+        - name: PERFORMANCE_VALIDATION
+          value: "true"
+        - name: INTEGRATION_VALIDATION
+          value: "true"
+        - name: BUSINESS_LOGIC_VALIDATION
+          value: "true"
+        
+        # Quality Gates
+        - name: MINIMUM_PERFORMANCE_SCORE
+          value: "85"  # 85% performance score required
+        - name: SECURITY_COMPLIANCE_REQUIRED
+          value: "100"  # 100% security compliance
+        - name: INTEGRATION_SUCCESS_RATE_REQUIRED
+          value: "95"   # 95% integration success rate
+        
+        envFrom:
+        - configMapRef:
+            name: configuration-validation-config
+        
+        volumeMounts:
+        - name: validation-rules
+          mountPath: /app/validation-rules
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: setup-templates
+        configMap:
+          name: white-glove-setup-templates
+      - name: automation-scripts
+        configMap:
+          name: automation-scripts
+      - name: validation-rules
+        configMap:
+          name: validation-rules-config
+      - name: setup-logs
+        emptyDir: {}
+
+---
+# Intelligent Business Requirements Analyzer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: business-requirements-analyzer
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-requirements-analyzer
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: business-requirements-analyzer
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: business-requirements-analyzer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: white-glove-automation-service-account
+      
+      containers:
+      - name: requirements-analyzer
+        image: gemini-salon/business-requirements-analyzer:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+        
+        env:
+        # Business Analysis Configuration
+        - name: ANALYZER_TYPE
+          value: "ai_powered_business_requirements"
+        - name: AI_MODEL
+          value: "gemini-pro"  # Advanced reasoning for business analysis
+        - name: ANALYSIS_DEPTH
+          value: "comprehensive"
+        - name: INDUSTRY_SPECIALIZATION
+          value: "beauty_salon_wellness"
+        
+        # Analysis Capabilities
+        - name: BUSINESS_PROCESS_MAPPING
+          value: "true"
+        - name: WORKFLOW_OPTIMIZATION_ANALYSIS
+          value: "true"
+        - name: INTEGRATION_REQUIREMENT_DETECTION
+          value: "true"
+        - name: PERFORMANCE_REQUIREMENT_ANALYSIS
+          value: "true"
+        - name: COMPLIANCE_REQUIREMENT_ASSESSMENT
+          value: "true"
+        
+        # Intelligent Recommendations
+        - name: CONFIGURATION_RECOMMENDATION_ENGINE
+          value: "true"
+        - name: BEST_PRACTICES_INTEGRATION
+          value: "true"
+        - name: INDUSTRY_BENCHMARK_COMPARISON
+          value: "true"
+        - name: ROI_OPTIMIZATION_SUGGESTIONS
+          value: "true"
+        
+        # Multi-Language Support
+        - name: SUPPORTED_LANGUAGES
+          value: "en,de,nl,fr"
+        - name: CULTURAL_CONTEXT_ANALYSIS
+          value: "true"
+        - name: REGIONAL_COMPLIANCE_ANALYSIS
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: business-requirements-analyzer-config
+        
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GEMINI_API_KEY
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: business-templates
+          mountPath: /app/templates
+          readOnly: true
+        - name: industry-benchmarks
+          mountPath: /app/benchmarks
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: business-templates
+        configMap:
+          name: business-analysis-templates
+      - name: industry-benchmarks
+        configMap:
+          name: industry-benchmark-data
+
+---
+# Infrastructure Provisioning Automation
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infrastructure-provisioning-automation
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: infrastructure-provisioning
+    tier: enterprise
+spec:
+  replicas: 1  # Single replica for provisioning coordination
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: infrastructure-provisioning
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: infrastructure-provisioning
+    spec:
+      serviceAccountName: infrastructure-provisioning-service-account
+      
+      containers:
+      - name: infrastructure-provisioner
+        image: gemini-salon/infrastructure-provisioner:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Infrastructure Provisioning Configuration
+        - name: PROVISIONER_TYPE
+          value: "enterprise_dedicated"
+        - name: INFRASTRUCTURE_TEMPLATE
+          value: "premium_enterprise"
+        - name: AUTO_SCALING_ENABLED
+          value: "true"
+        - name: HIGH_AVAILABILITY_ENABLED
+          value: "true"
+        
+        # Enterprise Infrastructure Features
+        - name: DEDICATED_NAMESPACE_PROVISIONING
+          value: "true"
+        - name: CUSTOM_DOMAIN_SETUP
+          value: "true"
+        - name: SSL_CERTIFICATE_AUTOMATION
+          value: "true"
+        - name: BACKUP_AUTOMATION_SETUP
+          value: "true"
+        - name: MONITORING_SETUP
+          value: "comprehensive"
+        
+        # Security Infrastructure
+        - name: NETWORK_POLICY_SETUP
+          value: "zero_trust"
+        - name: RBAC_CONFIGURATION
+          value: "enterprise_grade"
+        - name: SECRET_MANAGEMENT_SETUP
+          value: "vault_integration"
+        - name: COMPLIANCE_INFRASTRUCTURE
+          value: "gdpr_sox_compliant"
+        
+        # Performance Infrastructure
+        - name: CDN_SETUP
+          value: "true"
+        - name: CACHING_INFRASTRUCTURE
+          value: "redis_cluster"
+        - name: DATABASE_OPTIMIZATION
+          value: "true"
+        - name: LOAD_BALANCER_CONFIGURATION
+          value: "enterprise_grade"
+        
+        envFrom:
+        - configMapRef:
+            name: infrastructure-provisioning-config
+        
+        env:
+        - name: TERRAFORM_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: TERRAFORM_API_TOKEN
+        - name: KUBERNETES_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: KUBERNETES_API_TOKEN
+        - name: CLOUD_PROVIDER_CREDENTIALS
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: CLOUD_PROVIDER_CREDENTIALS
+        
+        volumeMounts:
+        - name: terraform-modules
+          mountPath: /app/terraform
+          readOnly: true
+        - name: kubernetes-manifests
+          mountPath: /app/k8s
+          readOnly: true
+        - name: provisioning-logs
+          mountPath: /app/logs
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: terraform-modules
+        configMap:
+          name: terraform-infrastructure-modules
+      - name: kubernetes-manifests
+        configMap:
+          name: kubernetes-enterprise-manifests
+      - name: provisioning-logs
+        emptyDir: {}
+
+---
+# Integration Setup Automation Engine
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-setup-automation
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: integration-setup-automation
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: integration-setup-automation
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: integration-setup-automation
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: white-glove-automation-service-account
+      
+      containers:
+      - name: integration-automator
+        image: gemini-salon/integration-setup-automator:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+        
+        env:
+        # Integration Automation Configuration
+        - name: INTEGRATION_AUTOMATOR_TYPE
+          value: "enterprise_comprehensive"
+        - name: INTELLIGENT_MAPPING_ENABLED
+          value: "true"
+        - name: AUTO_DISCOVERY_ENABLED
+          value: "true"
+        - name: VALIDATION_AUTOMATION
+          value: "comprehensive"
+        
+        # Voice Agent Integration Automation
+        - name: VOICE_AGENT_AUTO_SETUP
+          value: "true"
+        - name: TWILIO_INTEGRATION_AUTOMATION
+          value: "true"
+        - name: ELEVENLABS_INTEGRATION_AUTOMATION
+          value: "true"
+        - name: VOICE_WORKFLOW_GENERATION
+          value: "true"
+        - name: MULTILINGUAL_VOICE_SETUP
+          value: "true"
+        
+        # Business System Integrations
+        - name: CALENDAR_INTEGRATION_AUTOMATION
+          value: "google_outlook_apple"
+        - name: CRM_INTEGRATION_AUTOMATION
+          value: "hubspot_salesforce_pipedrive"
+        - name: PAYMENT_INTEGRATION_AUTOMATION
+          value: "stripe_square_paypal"
+        - name: APPOINTMENT_SYSTEM_INTEGRATION
+          value: "schedulicity_acuity_booksy"
+        
+        # Communication Channel Integrations
+        - name: WHATSAPP_BUSINESS_AUTOMATION
+          value: "true"
+        - name: INSTAGRAM_BUSINESS_AUTOMATION
+          value: "true"
+        - name: EMAIL_MARKETING_INTEGRATION
+          value: "mailchimp_constant_contact"
+        - name: SMS_INTEGRATION_AUTOMATION
+          value: "twilio_plivo"
+        
+        # Integration Testing and Validation
+        - name: AUTOMATED_INTEGRATION_TESTING
+          value: "true"
+        - name: DATA_FLOW_VALIDATION
+          value: "true"
+        - name: PERFORMANCE_TESTING
+          value: "true"
+        - name: SECURITY_VALIDATION
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: integration-automation-config
+        
+        env:
+        - name: N8N_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: N8N_API_KEY
+        - name: INTEGRATION_PLATFORM_TOKENS
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: INTEGRATION_PLATFORM_TOKENS
+        
+        volumeMounts:
+        - name: integration-templates
+          mountPath: /app/integration-templates
+          readOnly: true
+        - name: workflow-templates
+          mountPath: /app/workflow-templates
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: integration-templates
+        configMap:
+          name: integration-setup-templates
+      - name: workflow-templates
+        configMap:
+          name: n8n-workflow-templates
+
+---
+# Services for White-Glove Automation Components
+
+# White-Glove Setup Orchestrator Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: white-glove-setup-orchestrator-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: white-glove-setup-orchestrator
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: grpc
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  - name: metrics
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: white-glove-setup-orchestrator
+
+---
+# Business Requirements Analyzer Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: business-requirements-analyzer-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-requirements-analyzer
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: business-requirements-analyzer
+
+---
+# Infrastructure Provisioning Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: infrastructure-provisioning-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: infrastructure-provisioning
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: infrastructure-provisioning
+
+---
+# Integration Setup Automation Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration-setup-automation-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: integration-setup-automation
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: integration-setup-automation
+
+---
+# RBAC for White-Glove Automation
+
+# Service Account for General White-Glove Automation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: white-glove-automation-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: white-glove-automation
+
+---
+# Service Account for Infrastructure Provisioning (elevated privileges)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: infrastructure-provisioning-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: infrastructure-provisioning
+
+---
+# Role for White-Glove Automation
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: white-glove-automation-role
+rules:
+# Allow managing customer configurations
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+# Allow reading deployments and services for validation
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+# Allow creating jobs for automation tasks
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["create", "get", "list", "delete"]
+
+---
+# ClusterRole for Infrastructure Provisioning (broader permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: infrastructure-provisioning-cluster-role
+rules:
+# Full access to manage customer namespaces
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Manage deployments, services, and other resources
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["services", "endpoints", "configmaps", "secrets", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Manage ingress and networking
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Manage RBAC for customer environments
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "serviceaccounts"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Manage HPA and resource scaling
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# Role Binding for White-Glove Automation
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: white-glove-automation-role-binding
+  namespace: gemini-salon
+subjects:
+- kind: ServiceAccount
+  name: white-glove-automation-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: white-glove-automation-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRole Binding for Infrastructure Provisioning
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: infrastructure-provisioning-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: infrastructure-provisioning-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: infrastructure-provisioning-service-account
+  namespace: gemini-salon

@@ -1,0 +1,130 @@
+services:
+  # =============================================================================
+  # PREMIUM SAAS WEB SERVICE (Primary)
+  # =============================================================================
+  - type: web
+    name: claxis-web-production
+    env: node
+    plan: standard
+    region: frankfurt  # EU data residency compliance
+    numInstances: 2    # High availability for premium tier
+    buildCommand: cd apps/web && npm run build
+    startCommand: cd apps/web && npm start
+    healthCheckPath: /api/health
+    envVars:
+      # App Configuration
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: claxis-web-production
+          property: host
+      - key: NEXT_PUBLIC_APP_NAME
+        value: Gemini Salon AI
+      
+      # Database (Supabase EU)
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      
+      # WhatsApp Business API (Production)
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+      
+      # AI Services
+      - key: GEMINI_API_KEY
+        sync: false
+      
+      # Authentication
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: NEXTAUTH_URL
+        fromService:
+          type: web
+          name: claxis-web-production
+          property: host
+      
+      # EU Compliance
+      - key: DATA_REGION
+        value: eu-central-1
+      - key: DATA_RESIDENCY
+        value: frankfurt
+      
+      # Premium Performance Settings
+      - key: RATE_LIMIT_ENABLED
+        value: true
+      - key: RATE_LIMIT_REQUESTS_PER_MINUTE
+        value: 100
+
+  # =============================================================================
+  # PREMIUM SAAS WORKER SERVICE (Background Processing)
+  # =============================================================================
+  - type: worker
+    name: claxis-worker-production
+    env: node
+    plan: standard
+    region: frankfurt  # EU data residency compliance
+    numInstances: 1    # Single worker for cost optimization
+    buildCommand: cd apps/web && npm run build
+    startCommand: cd apps/web && node worker.js
+    envVars:
+      # Share all environment variables with web service
+      - key: NODE_ENV
+        value: production
+      
+      # Database (Supabase EU)
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      
+      # WhatsApp Business API
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+      
+      # AI Services
+      - key: GEMINI_API_KEY
+        sync: false
+      
+      # Redis Connection
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: claxis-redis-production
+          property: connectionString
+      
+      # EU Compliance
+      - key: DATA_REGION
+        value: eu-central-1
+      - key: DATA_RESIDENCY
+        value: frankfurt
+
+databases:
+  # =============================================================================
+  # REDIS FOR QUEUE SYSTEM (Production)
+  # =============================================================================
+  - type: redis
+    name: claxis-redis-production
+    plan: starter
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru

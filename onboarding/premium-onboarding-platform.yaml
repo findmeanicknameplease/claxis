@@ -1,0 +1,771 @@
+# Premium Onboarding Portal & Customer Success Platform for Phase 4A
+# Enterprise-grade onboarding experience for €299.99/month tier customers
+
+---
+# Premium Onboarding Portal Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: premium-onboarding-portal
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: premium-onboarding-portal
+    tier: enterprise
+    version: "1.0.0"
+  annotations:
+    description: "Premium onboarding portal for Enterprise tier customers (€299.99/month)"
+    business-value: "White-glove customer success and enterprise onboarding automation"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: premium-onboarding-portal
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: premium-onboarding-portal
+        tier: enterprise
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: premium-onboarding-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: onboarding-portal
+        image: gemini-salon/premium-onboarding-portal:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: websocket
+          containerPort: 8081
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Enterprise Onboarding Configuration
+        - name: NODE_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: ENTERPRISE_TIER_PRICING
+          value: "299.99"  # €299.99/month validation
+        - name: ONBOARDING_AUTOMATION_LEVEL
+          value: "premium"  # Premium automation features
+        
+        # Customer Success Platform Configuration
+        - name: CUSTOMER_SUCCESS_PLATFORM_ENABLED
+          value: "true"
+        - name: WHITE_GLOVE_ONBOARDING_ENABLED
+          value: "true"
+        - name: DEDICATED_SUCCESS_MANAGER_ASSIGNMENT
+          value: "true"
+        - name: REAL_TIME_ONBOARDING_ANALYTICS
+          value: "true"
+        
+        # Multi-Language Support
+        - name: SUPPORTED_LANGUAGES
+          value: "en,de,nl,fr"  # English, German, Dutch, French
+        - name: CULTURAL_LOCALIZATION_ENABLED
+          value: "true"
+        - name: TIMEZONE_AUTO_DETECTION
+          value: "true"
+        
+        # Integration Configuration
+        - name: VOICE_AGENT_INTEGRATION_ENABLED
+          value: "true"
+        - name: CALENDAR_INTEGRATION_ENABLED
+          value: "true"
+        - name: WHATSAPP_INTEGRATION_ENABLED
+          value: "true"
+        - name: INSTAGRAM_INTEGRATION_ENABLED
+          value: "true"
+        - name: N8N_WORKFLOW_INTEGRATION
+          value: "true"
+        
+        # Premium Features Configuration
+        - name: ENTERPRISE_SSO_ENABLED
+          value: "true"
+        - name: CUSTOM_BRANDING_ENABLED
+          value: "true"
+        - name: ADVANCED_ANALYTICS_ENABLED
+          value: "true"
+        - name: PRIORITY_SUPPORT_ENABLED
+          value: "true"
+        - name: DEDICATED_INFRASTRUCTURE_ENABLED
+          value: "true"
+        
+        # Onboarding Journey Configuration
+        - name: ONBOARDING_JOURNEY_STAGES
+          value: "welcome,setup,integration,training,validation,launch,success"
+        - name: AUTOMATED_SETUP_VALIDATION
+          value: "true"
+        - name: REAL_TIME_PROGRESS_TRACKING
+          value: "true"
+        - name: SUCCESS_MILESTONE_AUTOMATION
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: premium-onboarding-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: CUSTOMER_SUCCESS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: CUSTOMER_SUCCESS_API_KEY
+        - name: INTERCOM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: INTERCOM_API_KEY
+        - name: SLACK_CUSTOMER_SUCCESS_WEBHOOK
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: SLACK_CUSTOMER_SUCCESS_WEBHOOK
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        volumeMounts:
+        - name: onboarding-templates
+          mountPath: /app/templates
+          readOnly: true
+        - name: customer-success-config
+          mountPath: /app/config
+          readOnly: true
+        - name: onboarding-logs
+          mountPath: /app/logs
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      # Customer Success Manager Assistant Container
+      - name: customer-success-assistant
+        image: gemini-salon/customer-success-assistant:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8082
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Customer Success Assistant Configuration
+        - name: ASSISTANT_TYPE
+          value: "customer_success"
+        - name: AI_MODEL
+          value: "gemini-flash"  # Fast response for customer success
+        - name: RESPONSE_TIME_TARGET_MS
+          value: "500"  # <500ms response time
+        - name: MULTILINGUAL_SUPPORT
+          value: "true"
+        
+        # Integration with Main Portal
+        - name: ONBOARDING_PORTAL_URL
+          value: "http://localhost:8080"
+        - name: REAL_TIME_SYNC_ENABLED
+          value: "true"
+        - name: CUSTOMER_CONTEXT_SHARING
+          value: "true"
+        
+        # Success Manager Features
+        - name: SUCCESS_MANAGER_ESCALATION_ENABLED
+          value: "true"
+        - name: AUTOMATED_CHECK_IN_ENABLED
+          value: "true"
+        - name: PROGRESS_MILESTONE_ALERTS
+          value: "true"
+        - name: RISK_ASSESSMENT_ENABLED
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: customer-success-assistant-config
+        
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GEMINI_API_KEY
+        
+        volumeMounts:
+        - name: success-assistant-config
+          mountPath: /app/config
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: onboarding-templates
+        configMap:
+          name: premium-onboarding-templates
+      - name: customer-success-config
+        configMap:
+          name: customer-success-configuration
+      - name: success-assistant-config
+        configMap:
+          name: customer-success-assistant-config
+      - name: onboarding-logs
+        emptyDir: {}
+
+---
+# Premium Onboarding Portal Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: premium-onboarding-portal-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: premium-onboarding-portal
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: websocket
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: premium-onboarding-portal
+
+---
+# Customer Success Manager Dashboard Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-success-dashboard
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: customer-success-dashboard
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: customer-success-dashboard
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: customer-success-dashboard
+    spec:
+      serviceAccountName: premium-onboarding-service-account
+      
+      containers:
+      - name: success-dashboard
+        image: gemini-salon/customer-success-dashboard:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 768Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Dashboard Configuration
+        - name: DASHBOARD_TYPE
+          value: "customer_success"
+        - name: REAL_TIME_UPDATES_ENABLED
+          value: "true"
+        - name: CUSTOMER_360_VIEW_ENABLED
+          value: "true"
+        - name: PREDICTIVE_ANALYTICS_ENABLED
+          value: "true"
+        
+        # Customer Success Metrics
+        - name: SUCCESS_METRICS_TRACKING
+          value: "onboarding_progress,time_to_value,feature_adoption,satisfaction_score,churn_risk"
+        - name: AUTOMATED_HEALTH_SCORING
+          value: "true"
+        - name: PROACTIVE_INTERVENTION_ENABLED
+          value: "true"
+        
+        # Integration Configuration
+        - name: INTERCOM_INTEGRATION_ENABLED
+          value: "true"
+        - name: HUBSPOT_INTEGRATION_ENABLED
+          value: "true"
+        - name: SLACK_INTEGRATION_ENABLED
+          value: "true"
+        - name: EMAIL_AUTOMATION_ENABLED
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: customer-success-dashboard-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: ANALYTICS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ANALYTICS_API_KEY
+        
+        volumeMounts:
+        - name: dashboard-config
+          mountPath: /app/config
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: dashboard-config
+        configMap:
+          name: customer-success-dashboard-config
+
+---
+# Customer Success Dashboard Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-success-dashboard-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: customer-success-dashboard
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: customer-success-dashboard
+
+---
+# Onboarding Analytics Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onboarding-analytics-engine
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: onboarding-analytics-engine
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: onboarding-analytics-engine
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: onboarding-analytics-engine
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: premium-onboarding-service-account
+      
+      containers:
+      - name: analytics-engine
+        image: gemini-salon/onboarding-analytics-engine:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8083
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+        
+        env:
+        # Analytics Engine Configuration
+        - name: ANALYTICS_ENGINE_TYPE
+          value: "onboarding_optimization"
+        - name: REAL_TIME_PROCESSING_ENABLED
+          value: "true"
+        - name: PREDICTIVE_MODELING_ENABLED
+          value: "true"
+        - name: MACHINE_LEARNING_ENABLED
+          value: "true"
+        
+        # Customer Journey Analytics
+        - name: JOURNEY_STAGE_TRACKING
+          value: "true"
+        - name: CONVERSION_FUNNEL_ANALYSIS
+          value: "true"
+        - name: TIME_TO_VALUE_MEASUREMENT
+          value: "true"
+        - name: FEATURE_ADOPTION_TRACKING
+          value: "true"
+        - name: CHURN_PREDICTION_ENABLED
+          value: "true"
+        
+        # Success Metrics Configuration
+        - name: SUCCESS_METRICS_CALCULATION
+          value: "onboarding_completion_rate,time_to_first_value,feature_adoption_velocity,satisfaction_score"
+        - name: BENCHMARK_COMPARISON_ENABLED
+          value: "true"
+        - name: COHORT_ANALYSIS_ENABLED
+          value: "true"
+        
+        # Enterprise Reporting
+        - name: EXECUTIVE_REPORTING_ENABLED
+          value: "true"
+        - name: AUTOMATED_INSIGHTS_GENERATION
+          value: "true"
+        - name: PERFORMANCE_OPTIMIZATION_SUGGESTIONS
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: onboarding-analytics-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: ANALYTICS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ANALYTICS_API_KEY
+        - name: MACHINE_LEARNING_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: MACHINE_LEARNING_API_KEY
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8083
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: analytics-config
+          mountPath: /app/config
+          readOnly: true
+        - name: ml-models
+          mountPath: /app/models
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: analytics-config
+        configMap:
+          name: onboarding-analytics-config
+      - name: ml-models
+        configMap:
+          name: onboarding-ml-models
+
+---
+# Onboarding Analytics Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: onboarding-analytics-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: onboarding-analytics-engine
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8083
+    targetPort: 8083
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: onboarding-analytics-engine
+
+---
+# Premium Onboarding Portal HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: premium-onboarding-portal-hpa
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: premium-onboarding-portal
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: premium-onboarding-portal
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metrics for onboarding load
+  - type: Pods
+    pods:
+      metric:
+        name: active_onboarding_sessions_per_pod
+      target:
+        type: AverageValue
+        averageValue: "10"  # Scale when >10 active sessions per pod
+  # Customer success load scaling
+  - type: Pods
+    pods:
+      metric:
+        name: customer_success_requests_per_second_per_pod
+      target:
+        type: AverageValue
+        averageValue: "5"   # Scale when >5 requests/second per pod
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# Customer Success Dashboard HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: customer-success-dashboard-hpa
+  namespace: gemini-salon
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: customer-success-dashboard
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: dashboard_active_users_per_pod
+      target:
+        type: AverageValue
+        averageValue: "20"  # Scale when >20 active users per pod
+
+---
+# Onboarding Analytics Engine HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: onboarding-analytics-hpa
+  namespace: gemini-salon
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: onboarding-analytics-engine
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Pods
+    pods:
+      metric:
+        name: analytics_processing_queue_depth_per_pod
+      target:
+        type: AverageValue
+        averageValue: "50"  # Scale when >50 queued analytics jobs per pod
+
+---
+# RBAC for Premium Onboarding
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: premium-onboarding-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: premium-onboarding
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: premium-onboarding-role
+rules:
+# Allow reading customer and onboarding related resources
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Allow creating and updating customer success events
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+# Allow reading deployments for health checks
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: premium-onboarding-role-binding
+  namespace: gemini-salon
+subjects:
+- kind: ServiceAccount
+  name: premium-onboarding-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: premium-onboarding-role
+  apiGroup: rbac.authorization.k8s.io

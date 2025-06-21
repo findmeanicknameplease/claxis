@@ -1,0 +1,1084 @@
+import {
+  IExecuteFunctions,
+  INodeExecutionData,
+  INodeType,
+  INodeTypeDescription,
+  NodeOperationError,
+} from 'n8n-workflow';
+
+import {
+  SalonData,
+  ConversationContext,
+  AIModelRequest,
+  AIModelResponse,
+  AIModelType,
+  AIModelSelection,
+  NodeExecutionContext,
+  GeminiSalonNodeData,
+  ErrorResponse,
+} from '@/types';
+
+import {
+  getSalonData,
+  executeDatabaseOperation,
+  logInfo,
+  logError,
+  startPerformanceTimer,
+  endPerformanceTimer,
+  logAIModelUsage,
+  validateNodeExecutionContext,
+  validateConversationContext,
+  initializeDatabase,
+  isDatabaseInitialized,
+} from '@/utils';
+
+// =============================================================================
+// AI ORCHESTRATOR NODE IMPLEMENTATION
+// =============================================================================
+
+export class AIOrchestrator implements INodeType {
+  description: INodeTypeDescription = {
+    displayName: 'AI Orchestrator',
+    name: 'aiOrchestrator',
+    icon: 'file:aiOrchestrator.svg',
+    group: ['transform'],
+    version: 1,
+    description: 'Orchestrates AI model selection and routing between Gemini Flash, DeepSeek R1, and ElevenLabs for optimal response generation',
+    defaults: {
+      name: 'AI Orchestrator',
+    },
+    inputs: ['main'],
+    outputs: ['main', 'gemini', 'deepseek', 'elevenlabs'],
+    outputNames: ['Default', 'Gemini Response', 'DeepSeek Response', 'ElevenLabs Audio'],
+    credentials: [
+      {
+        name: 'geminiSalonApi',
+        required: true,
+      },
+    ],
+    properties: [
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        options: [
+          {
+            name: 'Route AI Request',
+            value: 'routeAIRequest',
+            description: 'Intelligently route request to optimal AI model based on complexity and requirements',
+            action: 'Route AI request',
+          },
+          {
+            name: 'Generate Response',
+            value: 'generateResponse',
+            description: 'Generate AI response using specified model and parameters',
+            action: 'Generate response',
+          },
+          {
+            name: 'Analyze Model Performance',
+            value: 'analyzeModelPerformance',
+            description: 'Analyze AI model performance and cost efficiency',
+            action: 'Analyze model performance',
+          },
+          {
+            name: 'Update AI Settings',
+            value: 'updateAISettings',
+            description: 'Update salon AI configuration and model preferences',
+            action: 'Update AI settings',
+          },
+          {
+            name: 'Get AI Usage Stats',
+            value: 'getAIUsageStats',
+            description: 'Retrieve AI model usage statistics and cost analysis',
+            action: 'Get AI usage stats',
+          },
+          {
+            name: 'Synthesize Voice Response',
+            value: 'synthesizeVoiceResponse',
+            description: 'Convert text response to voice using ElevenLabs',
+            action: 'Synthesize voice response',
+          },
+          {
+            name: 'Optimize AI Budget',
+            value: 'optimizeAIBudget',
+            description: 'Optimize AI model usage based on budget constraints',
+            action: 'Optimize AI budget',
+          },
+        ],
+        default: 'routeAIRequest',
+      },
+      {
+        displayName: 'Salon ID',
+        name: 'salonId',
+        type: 'string',
+        required: true,
+        default: '',
+        placeholder: 'e.g., 12345678-1234-1234-1234-123456789012',
+        description: 'The UUID of the salon',
+      },
+      {
+        displayName: 'Conversation Context',
+        name: 'conversationContext',
+        type: 'json',
+        displayOptions: {
+          show: {
+            operation: ['routeAIRequest', 'generateResponse'],
+          },
+        },
+        default: '{}',
+        description: 'JSON object containing conversation context and customer information',
+      },
+      {
+        displayName: 'Message Content',
+        name: 'messageContent',
+        type: 'string',
+        displayOptions: {
+          show: {
+            operation: ['routeAIRequest', 'generateResponse', 'synthesizeVoiceResponse'],
+          },
+        },
+        default: '',
+        description: 'The message content to process',
+      },
+      {
+        displayName: 'Request Type',
+        name: 'requestType',
+        type: 'options',
+        displayOptions: {
+          show: {
+            operation: ['routeAIRequest', 'generateResponse'],
+          },
+        },
+        options: [
+          {
+            name: 'General Inquiry',
+            value: 'general_inquiry',
+            description: 'General customer inquiry or information request',
+          },
+          {
+            name: 'Booking Request',
+            value: 'booking_request',
+            description: 'Customer wants to book an appointment',
+          },
+          {
+            name: 'Complex Problem Solving',
+            value: 'complex_problem_solving',
+            description: 'Complex issue requiring reasoning and analysis',
+          },
+          {
+            name: 'Creative Content',
+            value: 'creative_content',
+            description: 'Creative content generation or marketing material',
+          },
+          {
+            name: 'Customer Support',
+            value: 'customer_support',
+            description: 'Customer support or complaint resolution',
+          },
+          {
+            name: 'Voice Response',
+            value: 'voice_response',
+            description: 'Generate voice response for accessibility',
+          },
+        ],
+        default: 'general_inquiry',
+        description: 'Type of AI request to determine optimal model routing',
+      },
+      {
+        displayName: 'Preferred Model',
+        name: 'preferredModel',
+        type: 'options',
+        displayOptions: {
+          show: {
+            operation: ['generateResponse'],
+          },
+        },
+        options: [
+          {
+            name: 'Auto-Select',
+            value: 'auto',
+            description: 'Automatically select best model for the request',
+          },
+          {
+            name: 'Gemini Flash',
+            value: 'gemini_flash',
+            description: 'Fast, efficient responses for general inquiries',
+          },
+          {
+            name: 'DeepSeek R1',
+            value: 'deepseek_r1',
+            description: 'Advanced reasoning for complex problems',
+          },
+          {
+            name: 'ElevenLabs',
+            value: 'elevenlabs',
+            description: 'Voice synthesis for audio responses',
+          },
+        ],
+        default: 'auto',
+        description: 'Preferred AI model to use for generation',
+      },
+      {
+        displayName: 'Language',
+        name: 'language',
+        type: 'options',
+        displayOptions: {
+          show: {
+            operation: ['routeAIRequest', 'generateResponse', 'synthesizeVoiceResponse'],
+          },
+        },
+        options: [
+          {
+            name: 'German',
+            value: 'de',
+            description: 'German language response',
+          },
+          {
+            name: 'English',
+            value: 'en',
+            description: 'English language response',
+          },
+          {
+            name: 'Auto-Detect',
+            value: 'auto',
+            description: 'Automatically detect language from salon settings',
+          },
+        ],
+        default: 'auto',
+        description: 'Language for AI response generation',
+      },
+      {
+        displayName: 'Response Priority',
+        name: 'responsePriority',
+        type: 'options',
+        displayOptions: {
+          show: {
+            operation: ['routeAIRequest', 'generateResponse'],
+          },
+        },
+        options: [
+          {
+            name: 'Speed',
+            value: 'speed',
+            description: 'Prioritize fast response time',
+          },
+          {
+            name: 'Quality',
+            value: 'quality',
+            description: 'Prioritize response quality and accuracy',
+          },
+          {
+            name: 'Cost',
+            value: 'cost',
+            description: 'Prioritize cost-effective model selection',
+          },
+          {
+            name: 'Balanced',
+            value: 'balanced',
+            description: 'Balance speed, quality, and cost',
+          },
+        ],
+        default: 'balanced',
+        description: 'Priority for AI model selection and response generation',
+      },
+      {
+        displayName: 'Voice Settings',
+        name: 'voiceSettings',
+        type: 'json',
+        displayOptions: {
+          show: {
+            operation: ['synthesizeVoiceResponse'],
+          },
+        },
+        default: '{"voice_id": "default", "stability": 0.75, "similarity_boost": 0.8}',
+        description: 'ElevenLabs voice synthesis settings',
+      },
+      {
+        displayName: 'Budget Constraints',
+        name: 'budgetConstraints',
+        type: 'json',
+        displayOptions: {
+          show: {
+            operation: ['routeAIRequest', 'optimizeAIBudget'],
+          },
+        },
+        default: '{"max_cost_euros": 1.0, "enforce_limit": false}',
+        description: 'Budget constraints for AI model usage',
+      },
+      {
+        displayName: 'Calculation Period (Days)',
+        name: 'calculationPeriod',
+        type: 'number',
+        displayOptions: {
+          show: {
+            operation: ['analyzeModelPerformance', 'getAIUsageStats'],
+          },
+        },
+        default: 30,
+        description: 'Number of days to include in performance/usage analysis',
+      },
+      {
+        displayName: 'New AI Settings',
+        name: 'newAISettings',
+        type: 'json',
+        displayOptions: {
+          show: {
+            operation: ['updateAISettings'],
+          },
+        },
+        default: '{}',
+        description: 'Updated AI configuration settings',
+      },
+    ],
+  };
+
+  async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+    const items = this.getInputData();
+    const returnData: INodeExecutionData[][] = [[], [], [], []]; // 4 outputs
+    const timer = startPerformanceTimer('AIOrchestrator');
+
+    try {
+      // Initialize database connection
+      if (!isDatabaseInitialized()) {
+        await initializeDatabase();
+      }
+
+      for (let i = 0; i < items.length; i++) {
+        try {
+          const operation = this.getNodeParameter('operation', i) as string;
+          const salonId = this.getNodeParameter('salonId', i) as string;
+
+          // Validate execution context
+          const executionContext: NodeExecutionContext = {
+            node_id: this.getNode().id,
+            node_name: this.getNode().name || 'AIOrchestrator',
+            execution_id: this.getExecutionId(),
+            salon_id: salonId,
+            operation,
+            input_data: items[i],
+          };
+
+          const validation = validateNodeExecutionContext(executionContext);
+          if (!validation.valid) {
+            throw new NodeOperationError(this.getNode(), `Validation failed: ${validation.errors.join(', ')}`);
+          }
+
+          // Get salon data
+          const salonData = await getSalonData(salonId);
+          if (!salonData) {
+            const errorResponse: ErrorResponse = {
+              error: true,
+              error_code: 'AI_ORCHESTRATOR_ERROR',
+              error_message: `Salon not found with ID: ${salonId}`,
+              timestamp: new Date().toISOString(),
+              execution_id: this.getExecutionId(),
+            };
+            returnData[0].push({ json: errorResponse });
+            continue;
+          }
+
+          // Check if AI features are enabled
+          if (!salonData.settings?.ai_settings?.gemini_enabled && !salonData.settings?.ai_settings?.deepseek_enabled) {
+            const errorResponse: ErrorResponse = {
+              error: true,
+              error_code: 'AI_ORCHESTRATOR_ERROR',
+              error_message: 'AI features are disabled for this salon',
+              timestamp: new Date().toISOString(),
+              execution_id: this.getExecutionId(),
+            };
+            returnData[0].push({ json: errorResponse });
+            continue;
+          }
+
+          const result = await this.processOperation(operation, salonData, i);
+          
+          // Route result to appropriate output based on operation
+          if (operation === 'generateResponse' && result.model_used) {
+            switch (result.model_used) {
+              case 'gemini_flash':
+                returnData[1].push({ json: result });
+                break;
+              case 'deepseek_r1':
+                returnData[2].push({ json: result });
+                break;
+              case 'elevenlabs':
+                returnData[3].push({ json: result });
+                break;
+              default:
+                returnData[0].push({ json: result });
+            }
+          } else {
+            returnData[0].push({ json: result });
+          }
+
+          logInfo(`AIOrchestrator operation ${operation} completed successfully`, {
+            salon_id: salonId,
+            execution_id: this.getExecutionId(),
+          });
+
+        } catch (error) {
+          logError('AIOrchestrator execution error', error as Error, {
+            salon_id: this.getNodeParameter('salonId', i, '') as string,
+            execution_id: this.getExecutionId(),
+          });
+
+          const errorResponse: ErrorResponse = {
+            error: true,
+            error_code: 'AI_ORCHESTRATOR_ERROR',
+            error_message: error instanceof Error ? error.message : 'Unknown error occurred',
+            timestamp: new Date().toISOString(),
+            execution_id: this.getExecutionId(),
+          };
+          returnData[0].push({ json: errorResponse });
+        }
+      }
+
+      return returnData;
+
+    } finally {
+      endPerformanceTimer(timer, {
+        node_name: 'AIOrchestrator',
+        salon_id: this.getNodeParameter('salonId', 0, '') as string,
+        execution_id: this.getExecutionId(),
+      });
+    }
+  }
+
+  private async processOperation(operation: string, salonData: SalonData, itemIndex: number): Promise<any> {
+    switch (operation) {
+      case 'routeAIRequest':
+        return this.routeAIRequest(salonData, itemIndex);
+      case 'generateResponse':
+        return this.generateResponse(salonData, itemIndex);
+      case 'analyzeModelPerformance':
+        return this.analyzeModelPerformance(salonData, itemIndex);
+      case 'updateAISettings':
+        return this.updateAISettings(salonData, itemIndex);
+      case 'getAIUsageStats':
+        return this.getAIUsageStats(salonData, itemIndex);
+      case 'synthesizeVoiceResponse':
+        return this.synthesizeVoiceResponse(salonData, itemIndex);
+      case 'optimizeAIBudget':
+        return this.optimizeAIBudget(salonData, itemIndex);
+      default:
+        throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`);
+    }
+  }
+
+  private async routeAIRequest(salonData: SalonData, itemIndex: number): Promise<any> {
+    const conversationContextStr = this.getNodeParameter('conversationContext', itemIndex) as string;
+    const messageContent = this.getNodeParameter('messageContent', itemIndex) as string;
+    const requestType = this.getNodeParameter('requestType', itemIndex) as string;
+    const responsePriority = this.getNodeParameter('responsePriority', itemIndex) as string;
+    const budgetConstraintsStr = this.getNodeParameter('budgetConstraints', itemIndex) as string;
+
+    let conversationContext: ConversationContext;
+    let budgetConstraints: any;
+
+    try {
+      conversationContext = JSON.parse(conversationContextStr);
+      budgetConstraints = JSON.parse(budgetConstraintsStr);
+    } catch (error) {
+      throw new NodeOperationError(this.getNode(), 'Invalid JSON in conversation context or budget constraints');
+    }
+
+    // Validate conversation context
+    const validation = validateConversationContext(conversationContext);
+    if (!validation.valid) {
+      throw new NodeOperationError(this.getNode(), `Invalid conversation context: ${validation.errors.join(', ')}`);
+    }
+
+    // Determine optimal model selection
+    const modelSelection = this.selectOptimalModel(
+      messageContent,
+      requestType,
+      responsePriority,
+      salonData.settings!.ai_settings!,
+      budgetConstraints
+    );
+
+    // Calculate estimated costs
+    const estimatedCost = this.calculateEstimatedCost(modelSelection.selected_model, messageContent.length);
+
+    // Check budget constraints
+    if (budgetConstraints.enforce_limit && estimatedCost > budgetConstraints.max_cost_euros) {
+      return {
+        routing_decision: 'budget_exceeded',
+        selected_model: 'none',
+        reasoning: `Estimated cost (€${estimatedCost.toFixed(4)}) exceeds budget limit (€${budgetConstraints.max_cost_euros})`,
+        budget_status: {
+          estimated_cost_euros: estimatedCost,
+          budget_limit_euros: budgetConstraints.max_cost_euros,
+          budget_remaining: budgetConstraints.max_cost_euros - estimatedCost,
+        },
+        alternative_models: this.getAlternativeModels(modelSelection.selected_model, budgetConstraints.max_cost_euros),
+        execution_time: new Date().toISOString(),
+      };
+    }
+
+    // Log AI model routing decision
+    await logAIModelUsage(
+      salonData.id,
+      conversationContext.id,
+      modelSelection.selected_model,
+      estimatedCost,
+      this.getExecutionId()
+    );
+
+    return {
+      routing_decision: 'model_selected',
+      selected_model: modelSelection.selected_model,
+      reasoning: modelSelection.reasoning,
+      confidence_score: modelSelection.confidence,
+      estimated_cost_euros: estimatedCost,
+      model_capabilities: this.getModelCapabilities(modelSelection.selected_model),
+      routing_factors: {
+        request_type: requestType,
+        response_priority: responsePriority,
+        message_length: messageContent.length,
+        budget_constraints: budgetConstraints,
+      },
+      execution_time: new Date().toISOString(),
+    };
+  }
+
+  private async generateResponse(salonData: SalonData, itemIndex: number): Promise<any> {
+    const conversationContextStr = this.getNodeParameter('conversationContext', itemIndex) as string;
+    const messageContent = this.getNodeParameter('messageContent', itemIndex) as string;
+    const preferredModel = this.getNodeParameter('preferredModel', itemIndex) as string;
+    const language = this.getNodeParameter('language', itemIndex) as string;
+
+    let conversationContext: ConversationContext;
+    try {
+      conversationContext = JSON.parse(conversationContextStr);
+    } catch (error) {
+      throw new NodeOperationError(this.getNode(), 'Invalid JSON in conversation context');
+    }
+
+    // Determine actual language to use
+    const actualLanguage = language === 'auto' ? 
+      salonData.settings!.ai_settings!.preferred_language : language;
+
+    // Select model if auto-selection is requested
+    let modelToUse = preferredModel;
+    if (preferredModel === 'auto') {
+      const modelSelection = this.selectOptimalModel(
+        messageContent,
+        'general_inquiry',
+        'balanced',
+        salonData.settings!.ai_settings!,
+        {}
+      );
+      modelToUse = modelSelection.selected_model;
+    }
+
+    // Generate AI response (simulated for this implementation)
+    const response = await this.callAIModel(
+      modelToUse as AIModelType,
+      messageContent,
+      actualLanguage,
+      conversationContext,
+      salonData
+    );
+
+    return {
+      response_generated: true,
+      model_used: modelToUse,
+      language: actualLanguage,
+      response_content: response.content,
+      confidence_score: response.confidence,
+      processing_time_ms: response.processing_time_ms,
+      cost_euros: response.cost_euros,
+      token_usage: response.token_usage,
+      conversation_id: conversationContext.id,
+      generation_time: new Date().toISOString(),
+    };
+  }
+
+  private async analyzeModelPerformance(salonData: SalonData, itemIndex: number): Promise<any> {
+    const calculationPeriod = this.getNodeParameter('calculationPeriod', itemIndex) as number;
+
+    // Get AI usage data from analytics
+    const analyticsResult = await executeDatabaseOperation({
+      type: 'query',
+      table: 'analytics_events',
+      salon_id: salonData.id,
+      filters: {
+        event_type: 'ai_model_usage',
+        created_at: {
+          gte: new Date(Date.now() - (calculationPeriod * 24 * 60 * 60 * 1000)).toISOString(),
+        },
+      },
+    });
+
+    if (!analyticsResult.success) {
+      throw new NodeOperationError(this.getNode(), 'Failed to retrieve AI usage analytics');
+    }
+
+    const usageData = analyticsResult.data || [];
+
+    // Analyze performance by model
+    const performanceByModel = this.analyzeModelUsageData(usageData);
+
+    return {
+      performance_analysis_available: true,
+      calculation_period_days: calculationPeriod,
+      total_requests: usageData.length,
+      model_performance: performanceByModel,
+      cost_analysis: this.calculateCostAnalysis(usageData),
+      recommendations: this.generatePerformanceRecommendations(performanceByModel),
+      analysis_time: new Date().toISOString(),
+    };
+  }
+
+  private async updateAISettings(salonData: SalonData, itemIndex: number): Promise<any> {
+    const newSettingsStr = this.getNodeParameter('newAISettings', itemIndex) as string;
+
+    let newSettings: any;
+    try {
+      newSettings = JSON.parse(newSettingsStr);
+    } catch (error) {
+      throw new NodeOperationError(this.getNode(), 'Invalid JSON in new AI settings');
+    }
+
+    // Validate new settings
+    const validation = this.validateAISettings(newSettings);
+    if (!validation.valid) {
+      throw new NodeOperationError(this.getNode(), `Invalid AI settings: ${validation.errors.join(', ')}`);
+    }
+
+    // Merge with existing settings
+    const currentSettings = salonData.settings!.ai_settings!;
+    const updatedSettings = { ...currentSettings, ...newSettings };
+
+    // Update salon settings in database
+    const updateResult = await executeDatabaseOperation({
+      type: 'update',
+      table: 'salons',
+      salon_id: salonData.id,
+      data: {
+        settings: {
+          ...salonData.settings,
+          ai_settings: updatedSettings,
+        },
+      },
+      filters: { id: salonData.id },
+    });
+
+    if (!updateResult.success) {
+      throw new NodeOperationError(this.getNode(), 'Failed to update AI settings');
+    }
+
+    return {
+      settings_updated: true,
+      old_settings: currentSettings,
+      new_settings: updatedSettings,
+      changes_applied: Object.keys(newSettings),
+      estimated_impact: this.estimateSettingsImpact(currentSettings, updatedSettings),
+      update_time: new Date().toISOString(),
+    };
+  }
+
+  private async getAIUsageStats(salonData: SalonData, itemIndex: number): Promise<any> {
+    const calculationPeriod = this.getNodeParameter('calculationPeriod', itemIndex) as number;
+
+    // Get AI usage statistics
+    const analyticsResult = await executeDatabaseOperation({
+      type: 'query',
+      table: 'analytics_events',
+      salon_id: salonData.id,
+      filters: {
+        event_type: 'ai_model_usage',
+        created_at: {
+          gte: new Date(Date.now() - (calculationPeriod * 24 * 60 * 60 * 1000)).toISOString(),
+        },
+      },
+    });
+
+    if (!analyticsResult.success) {
+      throw new NodeOperationError(this.getNode(), 'Failed to retrieve AI usage statistics');
+    }
+
+    const usageData = analyticsResult.data || [];
+
+    // Calculate usage statistics
+    const stats = this.calculateUsageStatistics(usageData, calculationPeriod);
+
+    return {
+      statistics_available: true,
+      calculation_period_days: calculationPeriod,
+      usage_summary: stats.summary,
+      model_breakdown: stats.by_model,
+      cost_breakdown: stats.by_cost,
+      trends: stats.trends,
+      budget_status: this.calculateBudgetStatus(stats, salonData.settings!.ai_settings!),
+      recommendations: this.generateUsageRecommendations(stats),
+      statistics_time: new Date().toISOString(),
+    };
+  }
+
+  private async synthesizeVoiceResponse(salonData: SalonData, itemIndex: number): Promise<any> {
+    const messageContent = this.getNodeParameter('messageContent', itemIndex) as string;
+    const language = this.getNodeParameter('language', itemIndex) as string;
+    const voiceSettingsStr = this.getNodeParameter('voiceSettings', itemIndex) as string;
+
+    let voiceSettings: any;
+    try {
+      voiceSettings = JSON.parse(voiceSettingsStr);
+    } catch (error) {
+      throw new NodeOperationError(this.getNode(), 'Invalid JSON in voice settings');
+    }
+
+    // Check if ElevenLabs is enabled
+    if (!salonData.settings?.ai_settings?.elevenlabs_enabled) {
+      throw new NodeOperationError(this.getNode(), 'ElevenLabs voice synthesis is not enabled for this salon');
+    }
+
+    // Determine actual language
+    const actualLanguage = language === 'auto' ? 
+      salonData.settings!.ai_settings!.preferred_language : language;
+
+    // Synthesize voice (simulated for this implementation)
+    const voiceResponse = await this.callElevenLabsAPI(messageContent, actualLanguage, voiceSettings);
+
+    return {
+      voice_synthesis_completed: true,
+      original_text: messageContent,
+      language: actualLanguage,
+      voice_settings: voiceSettings,
+      audio_url: voiceResponse.audio_url,
+      audio_duration_seconds: voiceResponse.duration_seconds,
+      cost_euros: voiceResponse.cost_euros,
+      voice_id: voiceSettings.voice_id,
+      synthesis_time: new Date().toISOString(),
+    };
+  }
+
+  private async optimizeAIBudget(salonData: SalonData, itemIndex: number): Promise<any> {
+    const budgetConstraintsStr = this.getNodeParameter('budgetConstraints', itemIndex) as string;
+
+    let budgetConstraints: any;
+    try {
+      budgetConstraints = JSON.parse(budgetConstraintsStr);
+    } catch (error) {
+      throw new NodeOperationError(this.getNode(), 'Invalid JSON in budget constraints');
+    }
+
+    // Get current AI usage
+    const currentUsage = await this.getCurrentAIUsage(salonData.id);
+    
+    // Generate optimization recommendations
+    const optimization = this.generateBudgetOptimization(
+      currentUsage,
+      budgetConstraints,
+      salonData.settings!.ai_settings!
+    );
+
+    return {
+      budget_optimization_available: true,
+      current_usage: currentUsage,
+      budget_constraints: budgetConstraints,
+      optimization_recommendations: optimization.recommendations,
+      potential_savings_euros: optimization.potential_savings,
+      risk_assessment: optimization.risk_assessment,
+      implementation_steps: optimization.implementation_steps,
+      optimization_time: new Date().toISOString(),
+    };
+  }
+
+  // Helper methods for AI model selection and processing
+
+  private selectOptimalModel(
+    messageContent: string,
+    requestType: string,
+    responsePriority: string,
+    aiSettings: any,
+    budgetConstraints: any
+  ): AIModelSelection {
+    // Simple model selection logic (would be more sophisticated in production)
+    let selectedModel: AIModelType = 'gemini_flash';
+    let reasoning = '';
+    let confidence = 0.8;
+
+    if (requestType === 'complex_problem_solving' && aiSettings.deepseek_enabled) {
+      selectedModel = 'deepseek_r1';
+      reasoning = 'Complex problem solving requires advanced reasoning capabilities';
+      confidence = 0.9;
+    } else if (requestType === 'voice_response' && aiSettings.elevenlabs_enabled) {
+      selectedModel = 'elevenlabs';
+      reasoning = 'Voice response requested';
+      confidence = 1.0;
+    } else if (responsePriority === 'speed' && aiSettings.gemini_enabled) {
+      selectedModel = 'gemini_flash';
+      reasoning = 'Speed priority favors fast model';
+      confidence = 0.85;
+    } else if (responsePriority === 'quality' && aiSettings.deepseek_enabled) {
+      selectedModel = 'deepseek_r1';
+      reasoning = 'Quality priority favors advanced reasoning model';
+      confidence = 0.9;
+    }
+
+    return {
+      selected_model: selectedModel,
+      reasoning,
+      confidence,
+      alternatives: this.getAlternativeModels(selectedModel, budgetConstraints.max_cost_euros || 1.0),
+    };
+  }
+
+  private calculateEstimatedCost(model: AIModelType, messageLength: number): number {
+    // Simplified cost estimation (would use actual API pricing in production)
+    const baseCosts = {
+      gemini_flash: 0.001,
+      deepseek_r1: 0.005,
+      elevenlabs: 0.01,
+    };
+
+    const lengthMultiplier = Math.max(1, messageLength / 100);
+    return baseCosts[model] * lengthMultiplier;
+  }
+
+  private getModelCapabilities(model: AIModelType): any {
+    const capabilities = {
+      gemini_flash: {
+        strengths: ['Fast response', 'General inquiries', 'Cost-effective'],
+        limitations: ['Limited reasoning', 'Basic creativity'],
+        use_cases: ['General support', 'Quick responses', 'FAQ'],
+      },
+      deepseek_r1: {
+        strengths: ['Advanced reasoning', 'Complex problems', 'High accuracy'],
+        limitations: ['Slower response', 'Higher cost'],
+        use_cases: ['Problem solving', 'Analysis', 'Complex support'],
+      },
+      elevenlabs: {
+        strengths: ['High-quality voice', 'Multiple languages', 'Natural speech'],
+        limitations: ['Text-to-speech only', 'Higher cost', 'Latency'],
+        use_cases: ['Voice responses', 'Accessibility', 'Audio content'],
+      },
+    };
+
+    return capabilities[model] || {};
+  }
+
+  private getAlternativeModels(primaryModel: AIModelType, maxCost: number): AIModelType[] {
+    const alternatives: AIModelType[] = [];
+    const models: AIModelType[] = ['gemini_flash', 'deepseek_r1', 'elevenlabs'];
+
+    for (const model of models) {
+      if (model !== primaryModel && this.calculateEstimatedCost(model, 100) <= maxCost) {
+        alternatives.push(model);
+      }
+    }
+
+    return alternatives;
+  }
+
+  private async callAIModel(
+    model: AIModelType,
+    content: string,
+    language: string,
+    context: ConversationContext,
+    salonData: SalonData
+  ): Promise<AIModelResponse> {
+    // Simulated AI model call (would integrate with actual APIs in production)
+    const responses = {
+      gemini_flash: {
+        content: `Hello! I'm here to help you with your salon inquiry. How can I assist you today? (Generated by Gemini Flash in ${language})`,
+        confidence: 0.85,
+        processing_time_ms: 150,
+        cost_euros: 0.001,
+        token_usage: { input: 10, output: 25 },
+      },
+      deepseek_r1: {
+        content: `I understand you have a complex inquiry. Let me analyze this carefully and provide you with a comprehensive solution. (Generated by DeepSeek R1 in ${language})`,
+        confidence: 0.95,
+        processing_time_ms: 800,
+        cost_euros: 0.005,
+        token_usage: { input: 10, output: 35 },
+      },
+      elevenlabs: {
+        content: `[Audio response generated]`,
+        confidence: 1.0,
+        processing_time_ms: 2000,
+        cost_euros: 0.01,
+        token_usage: { input: 0, output: 0 },
+      },
+    };
+
+    return responses[model] || responses.gemini_flash;
+  }
+
+  private async callElevenLabsAPI(content: string, language: string, settings: any): Promise<any> {
+    // Simulated ElevenLabs API call
+    return {
+      audio_url: `https://api.elevenlabs.io/v1/audio/${Date.now()}.mp3`,
+      duration_seconds: Math.ceil(content.length / 10), // Rough estimation
+      cost_euros: this.calculateEstimatedCost('elevenlabs', content.length),
+    };
+  }
+
+  private analyzeModelUsageData(usageData: any[]): any {
+    // Analyze usage data by model
+    const modelStats: Record<string, any> = {};
+
+    for (const usage of usageData) {
+      const model = usage.event_data?.model_used || 'unknown';
+      if (!modelStats[model]) {
+        modelStats[model] = {
+          total_requests: 0,
+          total_cost_euros: 0,
+          avg_response_time_ms: 0,
+          success_rate: 0,
+          response_times: [],
+        };
+      }
+
+      modelStats[model].total_requests++;
+      modelStats[model].total_cost_euros += usage.event_data?.cost_euros || 0;
+      modelStats[model].response_times.push(usage.event_data?.processing_time_ms || 0);
+    }
+
+    // Calculate averages
+    for (const model in modelStats) {
+      const stats = modelStats[model];
+      stats.avg_response_time_ms = stats.response_times.reduce((a: number, b: number) => a + b, 0) / stats.response_times.length;
+      stats.success_rate = 1.0; // Simplified - would track actual success rates
+    }
+
+    return modelStats;
+  }
+
+  private calculateCostAnalysis(usageData: any[]): any {
+    const totalCost = usageData.reduce((sum, usage) => sum + (usage.event_data?.cost_euros || 0), 0);
+    const avgCostPerRequest = usageData.length > 0 ? totalCost / usageData.length : 0;
+
+    return {
+      total_cost_euros: totalCost,
+      average_cost_per_request_euros: avgCostPerRequest,
+      cost_trend: 'stable', // Simplified
+    };
+  }
+
+  private generatePerformanceRecommendations(performanceData: any): string[] {
+    const recommendations: string[] = [];
+
+    // Generate recommendations based on performance data
+    for (const model in performanceData) {
+      const stats = performanceData[model];
+      if (stats.avg_response_time_ms > 1000) {
+        recommendations.push(`Consider reducing usage of ${model} for time-sensitive requests`);
+      }
+      if (stats.total_cost_euros > 10) {
+        recommendations.push(`Monitor ${model} usage to control costs`);
+      }
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('AI model performance is optimal');
+    }
+
+    return recommendations;
+  }
+
+  private validateAISettings(settings: any): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (settings.cost_budget_monthly_euros !== undefined && settings.cost_budget_monthly_euros < 0) {
+      errors.push('Monthly cost budget must be non-negative');
+    }
+
+    if (settings.confidence_threshold !== undefined && (settings.confidence_threshold < 0 || settings.confidence_threshold > 1)) {
+      errors.push('Confidence threshold must be between 0 and 1');
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  private estimateSettingsImpact(oldSettings: any, newSettings: any): any {
+    return {
+      cost_impact: 'minimal',
+      performance_impact: 'positive',
+      user_experience_impact: 'improved',
+    };
+  }
+
+  private calculateUsageStatistics(usageData: any[], periodDays: number): any {
+    const totalRequests = usageData.length;
+    const totalCost = usageData.reduce((sum, usage) => sum + (usage.event_data?.cost_euros || 0), 0);
+
+    return {
+      summary: {
+        total_requests: totalRequests,
+        total_cost_euros: totalCost,
+        average_requests_per_day: totalRequests / periodDays,
+        average_cost_per_day_euros: totalCost / periodDays,
+      },
+      by_model: this.analyzeModelUsageData(usageData),
+      by_cost: this.calculateCostAnalysis(usageData),
+      trends: {
+        request_trend: 'increasing',
+        cost_trend: 'stable',
+      },
+    };
+  }
+
+  private calculateBudgetStatus(stats: any, aiSettings: any): any {
+    const monthlyBudget = aiSettings.cost_budget_monthly_euros || 100;
+    const currentMonthlySpend = stats.summary.average_cost_per_day_euros * 30;
+    
+    return {
+      monthly_budget_euros: monthlyBudget,
+      current_monthly_spend_euros: currentMonthlySpend,
+      budget_utilization_percentage: (currentMonthlySpend / monthlyBudget) * 100,
+      budget_status: currentMonthlySpend > monthlyBudget ? 'over_budget' : 'within_budget',
+    };
+  }
+
+  private generateUsageRecommendations(stats: any): string[] {
+    return [
+      'Consider optimizing high-cost model usage',
+      'Monitor request patterns for cost efficiency',
+      'Evaluate model performance vs cost trade-offs',
+    ];
+  }
+
+  private async getCurrentAIUsage(salonId: string): Promise<any> {
+    // Get current month's AI usage
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const analyticsResult = await executeDatabaseOperation({
+      type: 'query',
+      table: 'analytics_events',
+      salon_id: salonId,
+      filters: {
+        event_type: 'ai_model_usage',
+        created_at: {
+          gte: startOfMonth.toISOString(),
+        },
+      },
+    });
+
+    const usageData = analyticsResult.data || [];
+    return this.calculateUsageStatistics(usageData, new Date().getDate());
+  }
+
+  private generateBudgetOptimization(currentUsage: any, constraints: any, aiSettings: any): any {
+    return {
+      recommendations: [
+        'Switch high-volume requests to cost-effective models',
+        'Implement request caching for common queries',
+        'Optimize prompt length to reduce token usage',
+      ],
+      potential_savings: 15.50,
+      risk_assessment: 'low',
+      implementation_steps: [
+        'Review current model usage patterns',
+        'Implement cost-aware model selection',
+        'Monitor impact on response quality',
+      ],
+    };
+  }
+}

@@ -1,0 +1,736 @@
+# Security Scanning and Compliance Monitoring
+# Continuous security assessment and vulnerability management
+
+---
+# Vulnerability Scanner Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vulnerability-scanner
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: vulnerability-scanner
+    tier: security
+    version: "1.0.0"
+  annotations:
+    description: "Container and infrastructure vulnerability scanning"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: vulnerability-scanner
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: vulnerability-scanner
+        tier: security
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: security-scanner-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1006
+        runAsGroup: 1006
+        fsGroup: 1006
+      
+      containers:
+      - name: vulnerability-scanner
+        image: gemini-salon/vulnerability-scanner:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 4Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: SCAN_SCHEDULE
+          value: "0 3 * * *"  # Daily at 3 AM
+        - name: SCAN_DEPTH
+          value: "comprehensive"
+        - name: VULNERABILITY_DB_UPDATE
+          value: "daily"
+        - name: CRITICAL_ALERT_THRESHOLD
+          value: "high"
+        
+        envFrom:
+        - configMapRef:
+            name: security-scanner-config
+        
+        env:
+        - name: SCANNER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: VULNERABILITY_SCANNER_API_KEY
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 60
+          periodSeconds: 60
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        volumeMounts:
+        - name: scan-results
+          mountPath: /scan-results
+        - name: vulnerability-db
+          mountPath: /vulnerability-db
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: scan-results
+        persistentVolumeClaim:
+          claimName: security-scan-results-pvc
+      - name: vulnerability-db
+        persistentVolumeClaim:
+          claimName: vulnerability-db-pvc
+      
+      terminationGracePeriodSeconds: 300
+
+---
+# Compliance Monitor Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compliance-monitor
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: compliance-monitor
+    tier: security
+    version: "1.0.0"
+  annotations:
+    description: "GDPR and enterprise compliance monitoring"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: compliance-monitor
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: compliance-monitor
+        tier: security
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: security-scanner-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1007
+        runAsGroup: 1007
+        fsGroup: 1007
+      
+      containers:
+      - name: compliance-monitor
+        image: gemini-salon/compliance-monitor:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 2Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: COMPLIANCE_CHECK_INTERVAL
+          value: "3600000"  # Hourly compliance checks
+        - name: GDPR_MONITORING_ENABLED
+          value: "true"
+        - name: SOC2_MONITORING_ENABLED
+          value: "true"
+        - name: ISO27001_MONITORING_ENABLED
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: compliance-monitor-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        volumeMounts:
+        - name: compliance-reports
+          mountPath: /compliance-reports
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: compliance-reports
+        persistentVolumeClaim:
+          claimName: compliance-reports-pvc
+      
+      terminationGracePeriodSeconds: 60
+
+---
+# Security Policy Engine
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: security-policy-engine
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-policy-engine
+    tier: security
+    version: "1.0.0"
+  annotations:
+    description: "Real-time security policy enforcement and monitoring"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: security-policy-engine
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: security-policy-engine
+        tier: security
+        version: "1.0.0"
+    spec:
+      serviceAccountName: security-scanner-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1008
+        runAsGroup: 1008
+        fsGroup: 1008
+      
+      containers:
+      - name: security-policy-engine
+        image: gemini-salon/security-policy-engine:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: POLICY_ENFORCEMENT_MODE
+          value: "enforce"  # Can be: monitor, warn, enforce
+        - name: REAL_TIME_MONITORING
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: security-policy-config
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Services for Security Components
+apiVersion: v1
+kind: Service
+metadata:
+  name: vulnerability-scanner-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: vulnerability-scanner
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: vulnerability-scanner
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: compliance-monitor-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: compliance-monitor
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: compliance-monitor
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-policy-engine-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-policy-engine
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: security-policy-engine
+
+---
+# Security Scanner Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-scanner-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: vulnerability-scanner
+data:
+  # Scanner Configuration
+  SCANNER_ENGINE: "trivy,clair,anchore"
+  SCAN_TARGETS: "containers,infrastructure,dependencies"
+  SCAN_DEPTH: "comprehensive"
+  SCAN_TIMEOUT: "3600"  # 1 hour timeout
+  
+  # Vulnerability Database
+  VULN_DB_UPDATE_SCHEDULE: "0 1 * * *"  # Daily updates
+  VULN_DB_SOURCES: "nvd,redhat,ubuntu,alpine,amazon"
+  
+  # Severity Thresholds
+  CRITICAL_THRESHOLD: "0"    # No critical vulnerabilities allowed
+  HIGH_THRESHOLD: "5"        # Max 5 high severity
+  MEDIUM_THRESHOLD: "20"     # Max 20 medium severity
+  LOW_THRESHOLD: "100"       # Max 100 low severity
+  
+  # Reporting
+  REPORT_FORMAT: "json,html,pdf"
+  REPORT_RETENTION_DAYS: "90"
+  AUTOMATED_REPORTING: "true"
+  
+  # Integration
+  SLACK_NOTIFICATIONS: "true"
+  EMAIL_NOTIFICATIONS: "true"
+  WEBHOOK_NOTIFICATIONS: "true"
+
+---
+# Compliance Monitor Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: compliance-monitor-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: compliance-monitor
+data:
+  # GDPR Compliance Checks
+  GDPR_DATA_INVENTORY_CHECK: "true"
+  GDPR_CONSENT_VALIDATION: "true"
+  GDPR_DATA_MINIMIZATION_CHECK: "true"
+  GDPR_RETENTION_POLICY_CHECK: "true"
+  GDPR_BREACH_DETECTION: "true"
+  GDPR_DSR_PROCESSING_CHECK: "true"
+  
+  # SOC 2 Compliance
+  SOC2_ACCESS_CONTROL_CHECK: "true"
+  SOC2_SYSTEM_MONITORING: "true"
+  SOC2_CHANGE_MANAGEMENT: "true"
+  SOC2_LOGICAL_ACCESS: "true"
+  SOC2_SYSTEM_OPERATIONS: "true"
+  
+  # ISO 27001 Compliance
+  ISO27001_ISMS_CHECK: "true"
+  ISO27001_RISK_ASSESSMENT: "true"
+  ISO27001_SECURITY_CONTROLS: "true"
+  ISO27001_INCIDENT_MANAGEMENT: "true"
+  
+  # Monitoring Frequency
+  CONTINUOUS_MONITORING: "true"
+  HOURLY_CHECKS: "access_logs,failed_logins,privilege_escalation"
+  DAILY_CHECKS: "data_retention,consent_status,encryption_status"
+  WEEKLY_CHECKS: "access_reviews,policy_compliance,training_status"
+  
+  # Reporting
+  COMPLIANCE_DASHBOARD_ENABLED: "true"
+  AUTOMATED_COMPLIANCE_REPORTS: "true"
+  COMPLIANCE_SCORE_CALCULATION: "true"
+  TREND_ANALYSIS: "true"
+
+---
+# Security Policy Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-policy-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-policy-engine
+data:
+  # Network Security Policies
+  NETWORK_SEGMENTATION_REQUIRED: "true"
+  ZERO_TRUST_ENFORCEMENT: "true"
+  LATERAL_MOVEMENT_DETECTION: "true"
+  
+  # Data Protection Policies
+  ENCRYPTION_AT_REST_REQUIRED: "true"
+  ENCRYPTION_IN_TRANSIT_REQUIRED: "true"
+  DATA_CLASSIFICATION_ENFORCEMENT: "true"
+  DLP_ENABLED: "true"  # Data Loss Prevention
+  
+  # Access Control Policies
+  MFA_REQUIRED: "true"
+  PRIVILEGED_ACCESS_MONITORING: "true"
+  SESSION_TIMEOUT: "3600"  # 1 hour
+  CONCURRENT_SESSION_LIMIT: "3"
+  
+  # Container Security Policies
+  CONTAINER_IMAGE_SCANNING_REQUIRED: "true"
+  PRIVILEGED_CONTAINERS_BLOCKED: "true"
+  ROOT_FILESYSTEM_READONLY: "true"
+  SECURITY_CONTEXT_ENFORCEMENT: "true"
+  
+  # Kubernetes Security Policies
+  POD_SECURITY_STANDARDS: "restricted"
+  ADMISSION_CONTROLLER_ENABLED: "true"
+  RBAC_ENFORCEMENT: "strict"
+  NETWORK_POLICY_REQUIRED: "true"
+  
+  # Monitoring and Alerting
+  SECURITY_EVENT_CORRELATION: "true"
+  ANOMALY_DETECTION: "true"
+  BEHAVIORAL_ANALYSIS: "true"
+  THREAT_INTELLIGENCE_INTEGRATION: "true"
+
+---
+# Storage for Security Components
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: security-scan-results-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vulnerability-db-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: compliance-reports-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 15Gi
+
+---
+# Security Scanning CronJobs
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-vulnerability-scan
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-cronjob
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  timeZone: "Europe/Berlin"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 10800  # 3 hours timeout
+      template:
+        spec:
+          serviceAccountName: security-scanner-service-account
+          restartPolicy: OnFailure
+          containers:
+          - name: vulnerability-scan
+            image: gemini-salon/vulnerability-scanner:1.0.0
+            command: ["/app/scripts/daily-scan.sh"]
+            envFrom:
+            - configMapRef:
+                name: security-scanner-config
+            resources:
+              requests:
+                cpu: 500m
+                memory: 2Gi
+              limits:
+                cpu: 2000m
+                memory: 8Gi
+            volumeMounts:
+            - name: scan-results
+              mountPath: /scan-results
+          volumes:
+          - name: scan-results
+            persistentVolumeClaim:
+              claimName: security-scan-results-pvc
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: weekly-compliance-audit
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: compliance-cronjob
+spec:
+  schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM
+  timeZone: "Europe/Berlin"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200  # 2 hours timeout
+      template:
+        spec:
+          serviceAccountName: security-scanner-service-account
+          restartPolicy: OnFailure
+          containers:
+          - name: compliance-audit
+            image: gemini-salon/compliance-monitor:1.0.0
+            command: ["/app/scripts/weekly-audit.sh"]
+            envFrom:
+            - configMapRef:
+                name: compliance-monitor-config
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: gemini-salon-secrets
+                  key: DATABASE_URL
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                cpu: 1000m
+                memory: 4Gi
+            volumeMounts:
+            - name: compliance-reports
+              mountPath: /compliance-reports
+          volumes:
+          - name: compliance-reports
+            persistentVolumeClaim:
+              claimName: compliance-reports-pvc
+
+---
+# RBAC for Security Services
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: security-scanner-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: security-scanner
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: security-scanner-cluster-role
+  labels:
+    app: gemini-salon
+    component: security-scanner
+rules:
+# Allow reading all resources for security scanning
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "nodes", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["extensions", "networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["policy"]
+  resources: ["podsecuritypolicies"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: security-scanner-cluster-role-binding
+  labels:
+    app: gemini-salon
+    component: security-scanner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: security-scanner-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: security-scanner-service-account
+  namespace: gemini-salon

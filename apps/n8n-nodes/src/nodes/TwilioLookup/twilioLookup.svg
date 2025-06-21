@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="32" cy="32" r="30" fill="#f0312f" opacity="0.1" stroke="#f0312f" stroke-width="2"/>
+  
+  <!-- Phone Icon -->
+  <path d="M20 22c0-1.1.9-2 2-2h4l2 5-2.5 1.5c0 0 1.5 3 4 5.5s5.5 4 5.5 4L37 34l5 2v4c0 1.1-.9 2-2 2-11 0-20-9-20-20z" 
+        fill="#f0312f" stroke="#d00000" stroke-width="1"/>
+  
+  <!-- Shield Icon (Security) -->
+  <path d="M44 16l4 2v8c0 6-4 11-8 12-4-1-8-6-8-12v-8l4-2 4 2 4-2z" 
+        fill="#10b981" stroke="#059669" stroke-width="1"/>
+  
+  <!-- Checkmark in Shield -->
+  <path d="M41 24l2 2 4-4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Magnifying Glass -->
+  <circle cx="26" cy="46" r="6" fill="none" stroke="#6366f1" stroke-width="2"/>
+  <path d="M30 50l4 4" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Warning Triangle (for spam detection) -->
+  <path d="M52 44l-3-5-3 5h6z" fill="#f59e0b" stroke="#d97706" stroke-width="0.5"/>
+  <path d="M49 41v2M49 44v1" stroke="white" stroke-width="0.8" stroke-linecap="round"/>
+</svg>

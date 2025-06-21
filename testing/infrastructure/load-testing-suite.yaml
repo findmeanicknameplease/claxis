@@ -1,0 +1,686 @@
+# Enterprise Load Testing Suite for Sub-Task 3: End-to-End Testing & Validation
+# Phase 3A: Infrastructure Load Testing - Validating 99.5% uptime SLA and <2s response times
+
+---
+# Load Testing Job - Enterprise Stress Testing
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: enterprise-load-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: load-testing
+    phase: "3a-infrastructure-load-testing"
+    version: "1.0.0"
+  annotations:
+    description: "Enterprise load testing to validate €299.99/month tier SLA requirements"
+    test-target: "10000 concurrent users, 99.5% uptime, <2s response times"
+spec:
+  parallelism: 5  # Run 5 concurrent load testing pods
+  completions: 5
+  activeDeadlineSeconds: 3600  # 1 hour timeout
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: load-testing
+        phase: "3a-infrastructure-load-testing"
+    spec:
+      serviceAccountName: load-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: load-test-runner
+        image: gemini-salon/load-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 4000m
+            memory: 8Gi
+        
+        env:
+        # Enterprise Load Testing Configuration
+        - name: TEST_PHASE
+          value: "3A_INFRASTRUCTURE_LOAD_TESTING"
+        - name: TARGET_CONCURRENT_USERS
+          value: "10000"  # Enterprise tier requirement
+        - name: TEST_DURATION_MINUTES
+          value: "60"     # 1 hour sustained load
+        - name: SLA_TARGET_UPTIME
+          value: "99.5"   # 99.5% uptime requirement
+        - name: SLA_TARGET_RESPONSE_TIME_MS
+          value: "2000"   # <2s response time requirement
+        - name: RAMP_UP_TIME_MINUTES
+          value: "15"     # Gradual load increase
+        
+        # Voice-Specific Load Testing
+        - name: VOICE_CALL_SIMULATION_ENABLED
+          value: "true"
+        - name: VOICE_CONCURRENT_CALLS_TARGET
+          value: "1000"   # 1000 simultaneous voice calls
+        - name: VOICE_CALL_DURATION_SECONDS
+          value: "120"    # 2-minute average call duration
+        - name: WEBSOCKET_CONNECTIONS_TARGET
+          value: "5000"   # 5000 concurrent WebSocket connections
+        
+        # Multi-Channel Load Testing
+        - name: WHATSAPP_MESSAGE_RATE_PER_SECOND
+          value: "100"    # 100 WhatsApp messages per second
+        - name: INSTAGRAM_COMMENT_RATE_PER_SECOND
+          value: "50"     # 50 Instagram comments per second
+        - name: API_REQUEST_RATE_PER_SECOND
+          value: "1000"   # 1000 API requests per second
+        - name: CALENDAR_BOOKING_RATE_PER_MINUTE
+          value: "200"    # 200 booking attempts per minute
+        
+        envFrom:
+        - configMapRef:
+            name: load-testing-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: REDIS_URL
+        
+        command: ["/app/scripts/enterprise-load-test.sh"]
+        args: ["--phase", "3a", "--concurrent-users", "10000", "--duration", "60m"]
+        
+        volumeMounts:
+        - name: test-results
+          mountPath: /test-results
+        - name: test-data
+          mountPath: /test-data
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: test-results
+        persistentVolumeClaim:
+          claimName: load-test-results-pvc
+      - name: test-data
+        configMap:
+          name: load-testing-data
+
+---
+# Voice Gateway Load Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: voice-gateway-load-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: voice-load-testing
+    phase: "3a-voice-load-testing"
+spec:
+  parallelism: 3
+  completions: 3
+  activeDeadlineSeconds: 2400  # 40 minutes
+  template:
+    spec:
+      serviceAccountName: load-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: voice-load-tester
+        image: gemini-salon/voice-load-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Voice-Specific Load Testing
+        - name: TEST_TYPE
+          value: "VOICE_GATEWAY_LOAD_TEST"
+        - name: VOICE_GATEWAY_URL
+          value: "ws://voice-gateway-service:8080"
+        - name: CONCURRENT_VOICE_CALLS
+          value: "300"    # 300 calls per pod = 900 total
+        - name: CALL_DURATION_SECONDS
+          value: "180"    # 3-minute calls
+        - name: CALLS_PER_SECOND_RATE
+          value: "10"     # 10 new calls per second per pod
+        
+        # Voice Quality Testing
+        - name: AUDIO_QUALITY_VALIDATION
+          value: "true"
+        - name: LATENCY_MEASUREMENT_ENABLED
+          value: "true"
+        - name: VOICE_PACKET_LOSS_THRESHOLD
+          value: "0.1"    # <0.1% packet loss acceptable
+        - name: AUDIO_QUALITY_SCORE_THRESHOLD
+          value: "4.0"    # MOS score >4.0
+        
+        # Auto-Scaling Validation
+        - name: VALIDATE_AUTOSCALING
+          value: "true"
+        - name: EXPECTED_MIN_PODS
+          value: "3"      # Should start with 3 pods
+        - name: EXPECTED_MAX_PODS
+          value: "50"     # Should scale up to 50 pods
+        - name: SCALING_TRIGGER_THRESHOLD
+          value: "30"     # Should scale at 30 calls per pod
+        
+        envFrom:
+        - configMapRef:
+            name: voice-load-testing-config
+        
+        command: ["/app/scripts/voice-gateway-load-test.sh"]
+        
+        volumeMounts:
+        - name: voice-test-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: voice-test-results
+        persistentVolumeClaim:
+          claimName: voice-test-results-pvc
+
+---
+# Database Performance Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: database-performance-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: database-load-testing
+    phase: "3a-database-performance"
+spec:
+  activeDeadlineSeconds: 1800  # 30 minutes
+  template:
+    spec:
+      serviceAccountName: load-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: database-load-tester
+        image: gemini-salon/database-load-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Database Load Testing Configuration
+        - name: TEST_TYPE
+          value: "DATABASE_PERFORMANCE_VALIDATION"
+        - name: CONCURRENT_CONNECTIONS
+          value: "1000"   # Test PgBouncer pool capacity
+        - name: QUERIES_PER_SECOND
+          value: "5000"   # 5000 queries per second
+        - name: TEST_DURATION_MINUTES
+          value: "30"
+        
+        # Voice Data Simulation
+        - name: VOICE_CALL_INSERTS_PER_SECOND
+          value: "100"    # 100 voice call records per second
+        - name: CUSTOMER_ANALYTICS_UPDATES_PER_SECOND
+          value: "50"     # 50 customer profile updates per second
+        - name: BOOKING_TRANSACTIONS_PER_SECOND
+          value: "20"     # 20 booking transactions per second
+        
+        # Connection Pool Validation
+        - name: VALIDATE_CONNECTION_POOLING
+          value: "true"
+        - name: EXPECTED_POOL_SIZE
+          value: "50"     # PgBouncer default pool size
+        - name: MAX_CLIENT_CONNECTIONS
+          value: "1000"   # Max client connections
+        
+        # Performance Thresholds
+        - name: QUERY_RESPONSE_TIME_THRESHOLD_MS
+          value: "100"    # <100ms query response time
+        - name: CONNECTION_ACQUISITION_THRESHOLD_MS
+          value: "50"     # <50ms connection acquisition
+        
+        envFrom:
+        - configMapRef:
+            name: database-load-testing-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        command: ["/app/scripts/database-performance-test.sh"]
+        
+        volumeMounts:
+        - name: database-test-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: database-test-results
+        persistentVolumeClaim:
+          claimName: database-test-results-pvc
+
+---
+# CDN and Performance Testing Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cdn-performance-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: cdn-performance-testing
+    phase: "3a-cdn-performance"
+spec:
+  activeDeadlineSeconds: 1800  # 30 minutes
+  template:
+    spec:
+      serviceAccountName: load-testing-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: cdn-performance-tester
+        image: gemini-salon/cdn-performance-tester:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # CDN Performance Testing
+        - name: TEST_TYPE
+          value: "CDN_PERFORMANCE_VALIDATION"
+        - name: CDN_ENDPOINTS
+          value: "https://app.geminisalon.ai,https://api.geminisalon.ai"
+        - name: EU_EDGE_LOCATIONS
+          value: "Frankfurt,Amsterdam,London,Paris,Stockholm"
+        
+        # Response Time Testing
+        - name: TARGET_RESPONSE_TIME_MS
+          value: "2000"   # <2s response time SLA
+        - name: OPTIMAL_RESPONSE_TIME_MS
+          value: "1000"   # <1s optimal response time
+        - name: REQUESTS_PER_SECOND
+          value: "1000"   # 1000 requests per second
+        - name: TEST_DURATION_MINUTES
+          value: "20"
+        
+        # Cache Validation
+        - name: VALIDATE_CACHE_HIT_RATIO
+          value: "true"
+        - name: TARGET_CACHE_HIT_RATIO
+          value: "90"     # >90% cache hit ratio
+        - name: VALIDATE_CACHE_PURGING
+          value: "true"
+        
+        # Geographic Distribution Testing
+        - name: TEST_GEOGRAPHIC_PERFORMANCE
+          value: "true"
+        - name: EU_LATENCY_THRESHOLD_MS
+          value: "50"     # <50ms latency within EU
+        - name: GLOBAL_LATENCY_THRESHOLD_MS
+          value: "200"    # <200ms latency globally
+        
+        envFrom:
+        - configMapRef:
+            name: cdn-performance-config
+        
+        env:
+        - name: CDN_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: CDN_API_KEY
+        
+        command: ["/app/scripts/cdn-performance-test.sh"]
+        
+        volumeMounts:
+        - name: cdn-test-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: cdn-test-results
+        persistentVolumeClaim:
+          claimName: cdn-test-results-pvc
+
+---
+# Load Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: load-testing-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: load-testing
+data:
+  # Enterprise SLA Requirements
+  ENTERPRISE_TIER_REQUIREMENTS: |
+    {
+      "uptime_sla": "99.5%",
+      "response_time_sla": "<2s",
+      "concurrent_users": 10000,
+      "voice_calls_concurrent": 1000,
+      "api_requests_per_second": 1000,
+      "pricing_tier": "€299.99/month"
+    }
+  
+  # Load Testing Scenarios
+  LOAD_TEST_SCENARIOS: |
+    [
+      {
+        "name": "peak_hour_simulation",
+        "concurrent_users": 10000,
+        "duration_minutes": 60,
+        "ramp_up_minutes": 15,
+        "voice_calls_ratio": 0.1,
+        "booking_requests_ratio": 0.2,
+        "whatsapp_messages_ratio": 0.4,
+        "instagram_interactions_ratio": 0.3
+      },
+      {
+        "name": "sustained_load_test", 
+        "concurrent_users": 5000,
+        "duration_minutes": 180,
+        "ramp_up_minutes": 10,
+        "steady_state_minutes": 160,
+        "ramp_down_minutes": 10
+      },
+      {
+        "name": "stress_test_breaking_point",
+        "max_concurrent_users": 15000,
+        "increment_step": 1000,
+        "increment_interval_minutes": 5,
+        "breaking_point_detection": true
+      }
+    ]
+  
+  # Performance Thresholds
+  PERFORMANCE_THRESHOLDS: |
+    {
+      "response_time_p95_ms": 2000,
+      "response_time_p99_ms": 5000,
+      "error_rate_threshold": 0.1,
+      "uptime_requirement": 99.5,
+      "voice_quality_mos_threshold": 4.0,
+      "voice_latency_threshold_ms": 150,
+      "database_query_time_ms": 100,
+      "cache_hit_ratio_threshold": 90
+    }
+  
+  # Auto-Scaling Validation
+  AUTOSCALING_VALIDATION: |
+    {
+      "voice_gateway": {
+        "min_replicas": 3,
+        "max_replicas": 50,
+        "scale_up_threshold": 30,
+        "scale_up_metric": "active_voice_calls_per_pod",
+        "scale_down_threshold": 10,
+        "expected_scaling_time_seconds": 120
+      },
+      "notifier_service": {
+        "min_replicas": 2,
+        "max_replicas": 20,
+        "scale_up_threshold": 80,
+        "scale_up_metric": "cpu_utilization_percent",
+        "expected_scaling_time_seconds": 90
+      }
+    }
+  
+  # Test Data Configuration
+  TEST_DATA_PROFILES: |
+    {
+      "salon_profiles": 100,
+      "customer_profiles": 10000,
+      "service_types": 50,
+      "booking_templates": 200,
+      "voice_scripts": 25,
+      "languages": ["en", "de", "nl", "fr"]
+    }
+
+---
+# Voice Load Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-load-testing-config
+  namespace: gemini-salon
+data:
+  # Voice Gateway Testing Configuration
+  VOICE_TESTING_CONFIG: |
+    {
+      "concurrent_calls_per_pod": 300,
+      "total_test_calls": 1000,
+      "call_duration_seconds": 180,
+      "audio_sample_rate": 8000,
+      "audio_codec": "PCMU",
+      "websocket_heartbeat_interval": 30,
+      "call_setup_timeout_seconds": 10,
+      "media_timeout_seconds": 5
+    }
+  
+  # Voice Quality Metrics
+  VOICE_QUALITY_THRESHOLDS: |
+    {
+      "mos_score_threshold": 4.0,
+      "packet_loss_threshold": 0.1,
+      "jitter_threshold_ms": 30,
+      "latency_threshold_ms": 150,
+      "audio_quality_degradation_threshold": 0.05
+    }
+  
+  # Auto-Scaling Test Scenarios
+  VOICE_AUTOSCALING_SCENARIOS: |
+    [
+      {
+        "name": "gradual_ramp_up",
+        "start_calls": 90,
+        "end_calls": 1500,
+        "ramp_duration_minutes": 20,
+        "expected_pod_scaling": [3, 6, 12, 25, 50]
+      },
+      {
+        "name": "sudden_spike",
+        "baseline_calls": 60,
+        "spike_calls": 1200,
+        "spike_duration_minutes": 5,
+        "expected_scaling_time_seconds": 120
+      },
+      {
+        "name": "scale_down_test",
+        "peak_calls": 1000,
+        "final_calls": 100,
+        "scale_down_duration_minutes": 30,
+        "expected_final_pods": 3
+      }
+    ]
+
+---
+# Database Load Testing Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-load-testing-config
+  namespace: gemini-salon
+data:
+  # Database Performance Testing
+  DATABASE_TESTING_CONFIG: |
+    {
+      "connection_pool_test": {
+        "max_connections": 1000,
+        "pool_size": 50,
+        "connection_timeout_ms": 5000,
+        "query_timeout_ms": 10000
+      },
+      "query_performance_test": {
+        "queries_per_second": 5000,
+        "concurrent_queries": 100,
+        "query_complexity_levels": ["simple", "complex", "analytical"]
+      },
+      "transaction_testing": {
+        "transactions_per_second": 1000,
+        "transaction_size_operations": [1, 5, 10, 20],
+        "rollback_percentage": 5
+      }
+    }
+  
+  # Voice Data Load Testing
+  VOICE_DATA_TESTING: |
+    {
+      "call_records_per_second": 100,
+      "analytics_updates_per_second": 50,
+      "real_time_metrics_updates": 200,
+      "voice_transcription_storage": 25,
+      "customer_interaction_tracking": 150
+    }
+  
+  # Performance Monitoring Queries
+  PERFORMANCE_MONITORING_QUERIES: |
+    [
+      "SELECT COUNT(*) FROM voice_calls WHERE created_at > NOW() - INTERVAL '1 hour'",
+      "SELECT AVG(call_duration) FROM voice_calls WHERE DATE(created_at) = CURRENT_DATE",
+      "SELECT salon_id, COUNT(*) as call_count FROM voice_calls GROUP BY salon_id",
+      "SELECT * FROM customer_analytics WHERE updated_at > NOW() - INTERVAL '5 minutes'",
+      "UPDATE customer_profiles SET last_interaction = NOW() WHERE customer_id = $1"
+    ]
+
+---
+# Storage for Test Results
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: load-test-results-pvc
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: load-testing-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: voice-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: database-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 3Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cdn-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# RBAC for Load Testing
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: load-testing-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: load-testing
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: load-testing-role
+rules:
+# Allow reading all resources for monitoring during load tests
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps"]
+  verbs: ["get", "list", "watch"]
+# Allow reading deployments and HPA for auto-scaling validation
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+# Allow reading metrics for performance validation
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: load-testing-role-binding
+  namespace: gemini-salon
+subjects:
+- kind: ServiceAccount
+  name: load-testing-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: load-testing-role
+  apiGroup: rbac.authorization.k8s.io

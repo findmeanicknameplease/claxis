@@ -1,0 +1,18 @@
+<svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="30" cy="30" r="28" fill="#10B981" stroke="#047857" stroke-width="2"/>
+  
+  <!-- Clock Icon (Service Window) -->
+  <circle cx="30" cy="30" r="15" fill="white" stroke="#047857" stroke-width="2"/>
+  <line x1="30" y1="20" x2="30" y2="30" stroke="#047857" stroke-width="2" stroke-linecap="round"/>
+  <line x1="30" y1="30" x2="37" y2="30" stroke="#047857" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Euro Symbol (Cost Savings) -->
+  <circle cx="45" cy="15" r="8" fill="#F59E0B" stroke="#D97706" stroke-width="1"/>
+  <path d="M41 15 L49 15 M41 12 L47 12 M41 18 L47 18 M45 11 L45 19" 
+        stroke="white" stroke-width="1.5" fill="none"/>
+  
+  <!-- Optimization Arrow -->
+  <path d="M15 45 L25 35 M20 35 L25 35 L25 40" 
+        stroke="#F59E0B" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

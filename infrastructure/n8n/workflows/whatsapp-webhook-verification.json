@@ -1,0 +1,112 @@
+{
+  "meta": {
+    "instanceId": "claxis-salon-ai"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "webhook/whatsapp/verify",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "94c6d88e-8d6b-4fe4-bddb-c8c7e0c0b7d4",
+      "name": "WhatsApp Verification",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        300,
+        300
+      ],
+      "webhookId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$node[\"WhatsApp Verification\"].json[\"query\"][\"hub.verify_token\"]}}",
+              "value2": "={{$env.WHATSAPP_VERIFY_TOKEN}}"
+            }
+          ]
+        }
+      },
+      "id": "8e7f6d5c-4b3a-2190-8765-fedcba098765",
+      "name": "Verify Token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{$node[\"WhatsApp Verification\"].json[\"query\"][\"hub.challenge\"]}}",
+        "options": {}
+      },
+      "id": "1a2b3c4d-5e6f-7890-1234-567890abcdef",
+      "name": "Return Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        740,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Verification failed",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "fedcba09-8765-4321-0987-654321fedcba",
+      "name": "Verification Failed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        740,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Verification": {
+      "main": [
+        [
+          {
+            "node": "Verify Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Token": {
+      "main": [
+        [
+          {
+            "node": "Return Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verification Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1.0.0",
+  "id": "whatsapp-webhook-verification",
+  "name": "WhatsApp Webhook Verification"
+}

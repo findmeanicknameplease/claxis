@@ -1,0 +1,865 @@
+# Enterprise Training & Documentation Platform for Phase 4C
+# Comprehensive training ecosystem for Enterprise tier customers
+
+---
+# Enterprise Training Platform Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enterprise-training-platform
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: enterprise-training-platform
+    tier: enterprise
+    version: "1.0.0"
+  annotations:
+    description: "Premium training platform for Enterprise tier customers (€299.99/month)"
+    business-value: "Accelerated customer competency and reduced time-to-value"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: enterprise-training-platform
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: enterprise-training-platform
+        tier: enterprise
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: enterprise-training-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: training-platform
+        image: gemini-salon/enterprise-training-platform:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: websocket
+          containerPort: 8081
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Training Platform Configuration
+        - name: TRAINING_PLATFORM_TYPE
+          value: "enterprise_premium"
+        - name: PERSONALIZATION_LEVEL
+          value: "ai_adaptive"
+        - name: CERTIFICATION_ENABLED
+          value: "true"
+        - name: MULTILINGUAL_TRAINING
+          value: "true"
+        
+        # Enterprise Training Features
+        - name: DEDICATED_TRAINING_SESSIONS
+          value: "true"
+        - name: CUSTOM_CURRICULUM_CREATION
+          value: "true"
+        - name: ROLE_BASED_TRAINING
+          value: "true"
+        - name: COMPETENCY_TRACKING
+          value: "comprehensive"
+        - name: REAL_TIME_PROGRESS_MONITORING
+          value: "true"
+        
+        # Interactive Training Capabilities
+        - name: VOICE_AGENT_SIMULATION_TRAINING
+          value: "true"
+        - name: HANDS_ON_LAB_ENVIRONMENTS
+          value: "true"
+        - name: SCENARIO_BASED_TRAINING
+          value: "true"
+        - name: GAMIFICATION_ENABLED
+          value: "true"
+        - name: PEER_COLLABORATION_ENABLED
+          value: "true"
+        
+        # Assessment and Certification
+        - name: SKILLS_ASSESSMENT_ENABLED
+          value: "true"
+        - name: CERTIFICATION_PATHWAYS
+          value: "multiple"
+        - name: CONTINUING_EDUCATION
+          value: "true"
+        - name: COMPETENCY_VALIDATION
+          value: "automated"
+        
+        # Training Analytics
+        - name: LEARNING_ANALYTICS_ENABLED
+          value: "true"
+        - name: PERFORMANCE_TRACKING
+          value: "detailed"
+        - name: KNOWLEDGE_GAP_ANALYSIS
+          value: "ai_powered"
+        - name: TRAINING_ROI_MEASUREMENT
+          value: "true"
+        
+        # Multi-Language Support
+        - name: SUPPORTED_LANGUAGES
+          value: "en,de,nl,fr"  # English, German, Dutch, French
+        - name: CULTURAL_ADAPTATION
+          value: "true"
+        - name: LOCALIZED_CONTENT
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: enterprise-training-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: AI_TRAINING_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: AI_TRAINING_API_KEY
+        - name: VIDEO_PLATFORM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: VIDEO_PLATFORM_API_KEY
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: training-content
+          mountPath: /app/content
+          readOnly: true
+        - name: certification-templates
+          mountPath: /app/certifications
+          readOnly: true
+        - name: training-logs
+          mountPath: /app/logs
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      # AI Training Assistant Container
+      - name: ai-training-assistant
+        image: gemini-salon/ai-training-assistant:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8082
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 300m
+            memory: 768Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # AI Training Assistant Configuration
+        - name: ASSISTANT_TYPE
+          value: "enterprise_training"
+        - name: AI_MODEL
+          value: "gemini-pro"  # Advanced reasoning for training
+        - name: TRAINING_SPECIALIZATION
+          value: "voice_agent_and_business_automation"
+        - name: PERSONALIZATION_ENGINE
+          value: "adaptive_learning"
+        
+        # Training Assistant Features
+        - name: REAL_TIME_GUIDANCE
+          value: "true"
+        - name: CONTEXTUAL_HELP
+          value: "true"
+        - name: PROGRESS_COACHING
+          value: "true"
+        - name: SKILL_GAP_IDENTIFICATION
+          value: "true"
+        - name: LEARNING_PATH_OPTIMIZATION
+          value: "true"
+        
+        # Multi-Language AI Support
+        - name: MULTILINGUAL_AI_SUPPORT
+          value: "true"
+        - name: CULTURAL_CONTEXT_AWARENESS
+          value: "true"
+        - name: ACCENT_ADAPTATION
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: ai-training-assistant-config
+        
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GEMINI_API_KEY
+        
+        volumeMounts:
+        - name: ai-training-models
+          mountPath: /app/models
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: training-content
+        configMap:
+          name: enterprise-training-content
+      - name: certification-templates
+        configMap:
+          name: certification-templates
+      - name: ai-training-models
+        configMap:
+          name: ai-training-models-config
+      - name: training-logs
+        emptyDir: {}
+
+---
+# Interactive Learning Lab Environment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interactive-learning-lab
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: interactive-learning-lab
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: interactive-learning-lab
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: interactive-learning-lab
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: enterprise-training-service-account
+      
+      containers:
+      - name: learning-lab
+        image: gemini-salon/interactive-learning-lab:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: lab-websocket
+          containerPort: 8083
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 600m
+            memory: 1.5Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        env:
+        # Learning Lab Configuration
+        - name: LAB_ENVIRONMENT_TYPE
+          value: "enterprise_hands_on"
+        - name: SANDBOX_ISOLATION
+          value: "true"
+        - name: REAL_TIME_COLLABORATION
+          value: "true"
+        - name: GUIDED_TUTORIALS
+          value: "true"
+        
+        # Voice Agent Simulation Lab
+        - name: VOICE_AGENT_SIMULATOR
+          value: "true"
+        - name: CONVERSATION_FLOW_BUILDER
+          value: "true"
+        - name: VOICE_QUALITY_TESTING_LAB
+          value: "true"
+        - name: MULTILINGUAL_TESTING_ENVIRONMENT
+          value: "true"
+        
+        # Business Workflow Simulation
+        - name: APPOINTMENT_BOOKING_SIMULATOR
+          value: "true"
+        - name: CUSTOMER_SERVICE_SCENARIOS
+          value: "true"
+        - name: INTEGRATION_TESTING_LAB
+          value: "true"
+        - name: ANALYTICS_DASHBOARD_TRAINING
+          value: "true"
+        
+        # Scenario-Based Learning
+        - name: SCENARIO_LIBRARY
+          value: "comprehensive"
+        - name: DIFFICULTY_PROGRESSION
+          value: "adaptive"
+        - name: PERFORMANCE_FEEDBACK
+          value: "real_time"
+        - name: MISTAKE_LEARNING_ENGINE
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: interactive-learning-lab-config
+        
+        env:
+        - name: LAB_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: LAB_DATABASE_URL
+        - name: SIMULATION_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: SIMULATION_API_KEY
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        
+        volumeMounts:
+        - name: lab-scenarios
+          mountPath: /app/scenarios
+          readOnly: true
+        - name: simulation-data
+          mountPath: /app/simulations
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: lab-scenarios
+        configMap:
+          name: learning-lab-scenarios
+      - name: simulation-data
+        configMap:
+          name: simulation-training-data
+
+---
+# Documentation & Knowledge Base Platform
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: documentation-knowledge-base
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: documentation-knowledge-base
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: documentation-knowledge-base
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: documentation-knowledge-base
+    spec:
+      serviceAccountName: enterprise-training-service-account
+      
+      containers:
+      - name: knowledge-base
+        image: gemini-salon/documentation-knowledge-base:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: search-api
+          containerPort: 8084
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+        
+        env:
+        # Knowledge Base Configuration
+        - name: KNOWLEDGE_BASE_TYPE
+          value: "enterprise_comprehensive"
+        - name: AI_POWERED_SEARCH
+          value: "true"
+        - name: CONTEXTUAL_RECOMMENDATIONS
+          value: "true"
+        - name: INTERACTIVE_DOCUMENTATION
+          value: "true"
+        
+        # Documentation Features
+        - name: MULTI_FORMAT_SUPPORT
+          value: "text,video,interactive,pdf"
+        - name: VERSION_CONTROL
+          value: "true"
+        - name: COLLABORATIVE_EDITING
+          value: "true"
+        - name: AUTOMATED_UPDATES
+          value: "true"
+        
+        # Search and Discovery
+        - name: SEMANTIC_SEARCH
+          value: "true"
+        - name: INTELLIGENT_CATEGORIZATION
+          value: "true"
+        - name: PERSONALIZED_CONTENT
+          value: "true"
+        - name: USAGE_ANALYTICS
+          value: "true"
+        
+        # Multilingual Documentation
+        - name: MULTILINGUAL_CONTENT
+          value: "true"
+        - name: AUTOMATIC_TRANSLATION
+          value: "ai_powered"
+        - name: CULTURAL_ADAPTATION
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: documentation-knowledge-base-config
+        
+        env:
+        - name: ELASTICSEARCH_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ELASTICSEARCH_URL
+        - name: AI_SEARCH_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: AI_SEARCH_API_KEY
+        
+        volumeMounts:
+        - name: documentation-content
+          mountPath: /app/docs
+          readOnly: true
+        - name: video-content
+          mountPath: /app/videos
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: documentation-content
+        configMap:
+          name: enterprise-documentation-content
+      - name: video-content
+        configMap:
+          name: training-video-metadata
+
+---
+# Certification & Assessment Engine
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certification-assessment-engine
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: certification-assessment-engine
+    tier: enterprise
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: certification-assessment-engine
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: certification-assessment-engine
+    spec:
+      serviceAccountName: enterprise-training-service-account
+      
+      containers:
+      - name: certification-engine
+        image: gemini-salon/certification-assessment-engine:1.0.0
+        imagePullPolicy: Always
+        
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1Gi
+          limits:
+            cpu: 1200m
+            memory: 2.5Gi
+        
+        env:
+        # Certification Engine Configuration
+        - name: CERTIFICATION_TYPE
+          value: "enterprise_competency_based"
+        - name: ADAPTIVE_ASSESSMENT
+          value: "true"
+        - name: SKILL_BASED_CERTIFICATION
+          value: "true"
+        - name: CONTINUOUS_ASSESSMENT
+          value: "true"
+        
+        # Assessment Features
+        - name: PRACTICAL_ASSESSMENTS
+          value: "true"
+        - name: SIMULATION_BASED_TESTING
+          value: "true"
+        - name: PEER_ASSESSMENT
+          value: "true"
+        - name: REAL_WORLD_SCENARIOS
+          value: "true"
+        
+        # Certification Pathways
+        - name: ROLE_BASED_CERTIFICATIONS
+          value: "admin,operator,manager,owner"
+        - name: PROGRESSIVE_CERTIFICATION
+          value: "true"
+        - name: SPECIALIZATION_TRACKS
+          value: "voice_agent,integrations,analytics,business_optimization"
+        
+        # Analytics and Reporting
+        - name: COMPETENCY_ANALYTICS
+          value: "true"
+        - name: CERTIFICATION_ANALYTICS
+          value: "comprehensive"
+        - name: TRAINING_EFFECTIVENESS_MEASUREMENT
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: certification-assessment-config
+        
+        env:
+        - name: ASSESSMENT_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ASSESSMENT_DATABASE_URL
+        - name: BLOCKCHAIN_CERTIFICATE_API
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: BLOCKCHAIN_CERTIFICATE_API
+        
+        volumeMounts:
+        - name: assessment-content
+          mountPath: /app/assessments
+          readOnly: true
+        - name: certification-criteria
+          mountPath: /app/certifications
+          readOnly: true
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: assessment-content
+        configMap:
+          name: assessment-content-library
+      - name: certification-criteria
+        configMap:
+          name: certification-criteria-config
+
+---
+# Services for Training Platform Components
+
+# Enterprise Training Platform Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-training-platform-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: enterprise-training-platform
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  - name: websocket
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: enterprise-training-platform
+
+---
+# Interactive Learning Lab Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: interactive-learning-lab-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: interactive-learning-lab
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: lab-websocket
+    port: 8083
+    targetPort: 8083
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: interactive-learning-lab
+
+---
+# Documentation Knowledge Base Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: documentation-knowledge-base-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: documentation-knowledge-base
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  - name: search-api
+    port: 8084
+    targetPort: 8084
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: documentation-knowledge-base
+
+---
+# Certification Assessment Engine Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: certification-assessment-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: certification-assessment-engine
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: gemini-salon
+    component: certification-assessment-engine
+
+---
+# HPA for Training Platform Components
+
+# Enterprise Training Platform HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: enterprise-training-platform-hpa
+  namespace: gemini-salon
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: enterprise-training-platform
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: active_training_sessions_per_pod
+      target:
+        type: AverageValue
+        averageValue: "15"  # Scale when >15 active sessions per pod
+
+---
+# Interactive Learning Lab HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: interactive-learning-lab-hpa
+  namespace: gemini-salon
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: interactive-learning-lab
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Pods
+    pods:
+      metric:
+        name: active_lab_sessions_per_pod
+      target:
+        type: AverageValue
+        averageValue: "10"  # Scale when >10 active lab sessions per pod
+
+---
+# RBAC for Enterprise Training Platform
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: enterprise-training-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: enterprise-training
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: enterprise-training-role
+rules:
+# Allow reading training-related configurations
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+# Allow creating training events and progress tracking
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+# Allow reading service status for training environment health
+- apiGroups: [""]
+  resources: ["services", "endpoints"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: enterprise-training-role-binding
+  namespace: gemini-salon
+subjects:
+- kind: ServiceAccount
+  name: enterprise-training-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: enterprise-training-role
+  apiGroup: rbac.authorization.k8s.io

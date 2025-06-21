@@ -1,0 +1,197 @@
+{
+  "meta": {
+    "instanceId": "claxis-salon-ai"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook/whatsapp/message",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "whatsapp-webhook-trigger",
+      "name": "WhatsApp Message Received",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        300,
+        300
+      ],
+      "webhookId": "whatsapp-message-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Performance instrumentation - start time\nconst startTime = Date.now();\n\n// Extract message data from WhatsApp webhook\nconst webhookData = $input.all()[0].json;\nconst entry = webhookData.entry?.[0];\nconst changes = entry?.changes?.[0];\nconst value = changes?.value;\nconst messages = value?.messages;\nconst contacts = value?.contacts;\n\nif (!messages || messages.length === 0) {\n  return [{\n    json: {\n      skip: true,\n      reason: 'No messages in webhook'\n    }\n  }];\n}\n\nconst message = messages[0];\nconst contact = contacts?.[0];\n\n// Prepare response data\nconst responseData = {\n  // WhatsApp API required fields\n  phone_number_id: value.metadata?.phone_number_id,\n  to: message.from,\n  type: 'text',\n  text: {\n    body: `You said: \"${message.text?.body || '[non-text message]'}\"`\n  },\n  // Performance tracking\n  start_time: startTime,\n  // Message context\n  original_message: message.text?.body || '[non-text message]',\n  user_phone: message.from,\n  user_name: contact?.profile?.name || 'Unknown',\n  message_id: message.id,\n  timestamp: message.timestamp\n};\n\nreturn [{ json: responseData }];"
+      },
+      "id": "message-processor",
+      "name": "Process Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.skip}}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "skip-check",
+      "name": "Should Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "communication",
+        "chatId": "={{$json.to}}",
+        "messageType": "text",
+        "message": "={{$json.text.body}}",
+        "additionalFields": {}
+      },
+      "id": "whatsapp-reply",
+      "name": "Send WhatsApp Reply",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        960,
+        200
+      ],
+      "credentials": {
+        "whatsAppOAuth2Api": {
+          "id": "whatsapp-credentials",
+          "name": "WhatsApp Business Cloud"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Performance instrumentation - calculate total time\nconst startTime = $json.start_time;\nconst endTime = Date.now();\nconst totalTime = endTime - startTime;\n\n// Log performance metrics\nconsole.log(`Echo Bot Performance: ${totalTime}ms`);\nconsole.log(`Message processed: ${$json.original_message}`);\nconsole.log(`User: ${$json.user_name} (${$json.user_phone})`);\n\nreturn [{\n  json: {\n    success: true,\n    performance_ms: totalTime,\n    message_id: $json.message_id,\n    user_phone: $json.user_phone,\n    processed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "performance-logger",
+      "name": "Log Performance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"success\", \"message\": \"Echo processed\"}",
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"skipped\", \"reason\": $json.reason}",
+        "options": {}
+      },
+      "id": "skip-response",
+      "name": "Skip Response",  
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        960,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Message Received": {
+      "main": [
+        [
+          {
+            "node": "Process Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Message": {
+      "main": [
+        [
+          {
+            "node": "Should Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Process?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Performance": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }  
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "errorWorkflow": {
+      "id": "global-error-handler"
+    }
+  },
+  "versionId": "1.0.0", 
+  "id": "echo-bot",
+  "name": "Echo Bot - Vertical Slice 0"
+}

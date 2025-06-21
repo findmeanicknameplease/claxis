@@ -1,0 +1,675 @@
+# Monitoring and SLA Validation Suite for Phase 3A Infrastructure Load Testing
+# Validates real-time monitoring, alerting, and SLA compliance during load tests
+
+---
+# Real-Time Monitoring Validation Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: monitoring-validation-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: monitoring-validation
+    phase: "3a-monitoring-validation"
+    version: "1.0.0"
+  annotations:
+    description: "Validate monitoring systems during enterprise load testing"
+spec:
+  activeDeadlineSeconds: 7200  # 2 hours
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: monitoring-validation
+    spec:
+      serviceAccountName: monitoring-validation-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: monitoring-validator
+        image: gemini-salon/monitoring-validator:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        # Monitoring Validation Configuration
+        - name: TEST_TYPE
+          value: "MONITORING_SLA_VALIDATION"
+        - name: PROMETHEUS_URL
+          value: "http://prometheus-service:9090"
+        - name: GRAFANA_URL
+          value: "http://grafana-service:3000"
+        - name: ALERTMANAGER_URL
+          value: "http://alertmanager-service:9093"
+        
+        # SLA Validation Thresholds
+        - name: UPTIME_SLA_TARGET
+          value: "99.5"   # 99.5% uptime requirement
+        - name: RESPONSE_TIME_SLA_MS
+          value: "2000"   # <2s response time SLA
+        - name: ERROR_RATE_THRESHOLD
+          value: "0.1"    # <0.1% error rate
+        - name: AVAILABILITY_CHECK_INTERVAL_SECONDS
+          value: "30"     # Check every 30 seconds
+        
+        # Business Metrics Validation
+        - name: VALIDATE_BUSINESS_METRICS
+          value: "true"
+        - name: MRR_TRACKING_ENABLED
+          value: "true"
+        - name: VOICE_AGENT_ROI_TRACKING
+          value: "true"
+        - name: CUSTOMER_SATISFACTION_TRACKING
+          value: "true"
+        
+        # Alert Testing
+        - name: TEST_ALERT_DELIVERY
+          value: "true"
+        - name: ALERT_RESPONSE_TIME_THRESHOLD_SECONDS
+          value: "300"    # Alerts should fire within 5 minutes
+        - name: ALERT_CHANNELS
+          value: "slack,email,pagerduty"
+        
+        envFrom:
+        - configMapRef:
+            name: monitoring-validation-config
+        
+        env:
+        - name: PROMETHEUS_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: PROMETHEUS_API_TOKEN
+        - name: GRAFANA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GRAFANA_API_KEY
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ALERTMANAGER_SLACK_WEBHOOK
+        
+        command: ["/app/scripts/monitoring-validation.sh"]
+        
+        volumeMounts:
+        - name: monitoring-test-results
+          mountPath: /test-results
+        - name: alert-test-data
+          mountPath: /alert-test-data
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: monitoring-test-results
+        persistentVolumeClaim:
+          claimName: monitoring-test-results-pvc
+      - name: alert-test-data
+        configMap:
+          name: alert-test-scenarios
+
+---
+# Auto-Scaling Validation Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: autoscaling-validation-test
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: autoscaling-validation
+    phase: "3a-autoscaling-validation"
+spec:
+  activeDeadlineSeconds: 3600  # 1 hour
+  template:
+    spec:
+      serviceAccountName: monitoring-validation-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: autoscaling-validator
+        image: gemini-salon/autoscaling-validator:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        # Auto-Scaling Validation Configuration
+        - name: TEST_TYPE
+          value: "AUTOSCALING_VALIDATION"
+        - name: KUBERNETES_API_URL
+          value: "https://kubernetes.default.svc"
+        - name: METRICS_SERVER_URL
+          value: "https://metrics-server.kube-system.svc"
+        
+        # Voice Gateway Auto-Scaling Tests
+        - name: VOICE_GATEWAY_DEPLOYMENT
+          value: "voice-gateway-deployment"
+        - name: VOICE_GATEWAY_HPA
+          value: "voice-gateway-advanced-hpa"
+        - name: EXPECTED_MIN_REPLICAS
+          value: "3"
+        - name: EXPECTED_MAX_REPLICAS
+          value: "50"
+        - name: SCALE_UP_THRESHOLD_CALLS
+          value: "30"     # Scale when >30 calls per pod
+        - name: SCALE_UP_THRESHOLD_RESPONSE_TIME
+          value: "1500"   # Scale when response time >1.5s
+        
+        # Notifier Service Auto-Scaling Tests
+        - name: NOTIFIER_DEPLOYMENT
+          value: "notifier-deployment"
+        - name: NOTIFIER_HPA
+          value: "notifier-advanced-hpa"
+        - name: NOTIFIER_MIN_REPLICAS
+          value: "2"
+        - name: NOTIFIER_MAX_REPLICAS
+          value: "20"
+        
+        # Auto-Scaling Performance Validation
+        - name: SCALING_RESPONSE_TIME_THRESHOLD_SECONDS
+          value: "120"    # Should scale within 2 minutes
+        - name: SCALING_ACCURACY_THRESHOLD
+          value: "90"     # 90% scaling accuracy required
+        - name: VALIDATE_SCALE_DOWN
+          value: "true"
+        - name: SCALE_DOWN_DELAY_MINUTES
+          value: "5"      # Wait 5 minutes before scale down
+        
+        envFrom:
+        - configMapRef:
+            name: autoscaling-validation-config
+        
+        command: ["/app/scripts/autoscaling-validation.sh"]
+        
+        volumeMounts:
+        - name: autoscaling-test-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: autoscaling-test-results
+        persistentVolumeClaim:
+          claimName: autoscaling-test-results-pvc
+
+---
+# Business Intelligence Validation Job  
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: business-intelligence-validation
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: business-intelligence-validation
+    phase: "3a-business-intelligence"
+spec:
+  activeDeadlineSeconds: 1800  # 30 minutes
+  template:
+    spec:
+      serviceAccountName: monitoring-validation-service-account
+      restartPolicy: Never
+      
+      containers:
+      - name: business-intelligence-validator
+        image: gemini-salon/business-intelligence-validator:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        # Business Intelligence Testing
+        - name: TEST_TYPE
+          value: "BUSINESS_INTELLIGENCE_VALIDATION"
+        - name: BUSINESS_METRICS_EXPORTER_URL
+          value: "http://business-metrics-exporter-service:8080"
+        - name: GRAFANA_DASHBOARD_URL
+          value: "http://grafana-service:3000/d/executive-dashboard"
+        
+        # Executive Dashboard Validation
+        - name: VALIDATE_EXECUTIVE_DASHBOARD
+          value: "true"
+        - name: MRR_CALCULATION_ACCURACY_THRESHOLD
+          value: "99.9"   # 99.9% accuracy in MRR calculations
+        - name: REVENUE_TRACKING_REAL_TIME_DELAY_SECONDS
+          value: "60"     # Real-time revenue updates within 1 minute
+        
+        # Voice Agent ROI Validation
+        - name: VALIDATE_VOICE_AGENT_ROI
+          value: "true"
+        - name: ROI_CALCULATION_BASELINE_COST
+          value: "1200"   # €1,200/month receptionist replacement
+        - name: ENTERPRISE_TIER_PRICING
+          value: "299.99" # €299.99/month Enterprise tier
+        - name: EXPECTED_ROI_PERCENTAGE
+          value: "300"    # 300% ROI (saves €900/month net)
+        
+        # Customer Analytics Validation
+        - name: VALIDATE_CUSTOMER_ANALYTICS
+          value: "true"
+        - name: CUSTOMER_SEGMENT_ACCURACY_THRESHOLD
+          value: "85"     # 85% customer segmentation accuracy
+        - name: LTV_PREDICTION_ACCURACY_THRESHOLD
+          value: "80"     # 80% LTV prediction accuracy
+        - name: CHURN_PREDICTION_ACCURACY_THRESHOLD
+          value: "75"     # 75% churn prediction accuracy
+        
+        # SLA Compliance Reporting
+        - name: VALIDATE_SLA_REPORTING
+          value: "true"
+        - name: SLA_REPORT_UPDATE_FREQUENCY_MINUTES
+          value: "5"      # SLA reports updated every 5 minutes
+        - name: UPTIME_CALCULATION_ACCURACY
+          value: "99.99"  # 99.99% accuracy in uptime calculations
+        
+        envFrom:
+        - configMapRef:
+            name: business-intelligence-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: GRAFANA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: GRAFANA_API_KEY
+        
+        command: ["/app/scripts/business-intelligence-validation.sh"]
+        
+        volumeMounts:
+        - name: bi-test-results
+          mountPath: /test-results
+      
+      volumes:
+      - name: bi-test-results
+        persistentVolumeClaim:
+          claimName: bi-test-results-pvc
+
+---
+# Configuration for Monitoring Validation
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-validation-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: monitoring-validation
+data:
+  # Prometheus Query Validation
+  PROMETHEUS_QUERIES: |
+    {
+      "uptime_query": "up{job=\"gemini-salon\"} * 100",
+      "response_time_query": "histogram_quantile(0.95, http_request_duration_seconds_bucket{job=\"voice-gateway\"})",
+      "error_rate_query": "rate(http_requests_total{status=~\"4..|5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+      "voice_calls_active": "active_voice_calls_per_pod",
+      "websocket_connections": "websocket_connections_per_pod",
+      "cpu_utilization": "rate(container_cpu_usage_seconds_total[5m]) * 100",
+      "memory_utilization": "container_memory_working_set_bytes / container_spec_memory_limit_bytes * 100"
+    }
+  
+  # Alert Rule Validation
+  ALERT_RULES_VALIDATION: |
+    [
+      {
+        "alert_name": "HighErrorRate",
+        "threshold": "0.1",
+        "severity": "critical",
+        "expected_firing_time_seconds": 300
+      },
+      {
+        "alert_name": "ResponseTimeHigh",
+        "threshold": "2000",
+        "severity": "warning", 
+        "expected_firing_time_seconds": 300
+      },
+      {
+        "alert_name": "ServiceDown",
+        "threshold": "0",
+        "severity": "critical",
+        "expected_firing_time_seconds": 60
+      },
+      {
+        "alert_name": "VoiceQualityDegraded",
+        "threshold": "4.0",
+        "severity": "warning",
+        "expected_firing_time_seconds": 180
+      }
+    ]
+  
+  # Dashboard Validation Queries
+  DASHBOARD_VALIDATION: |
+    {
+      "executive_dashboard": {
+        "panels": [
+          "monthly_recurring_revenue",
+          "enterprise_tier_customers",
+          "voice_agent_savings",
+          "uptime_sla_compliance",
+          "response_time_p95",
+          "customer_satisfaction_score"
+        ],
+        "update_frequency_seconds": 30,
+        "data_freshness_threshold_minutes": 5
+      },
+      "technical_dashboard": {
+        "panels": [
+          "service_health_overview",
+          "auto_scaling_status",
+          "voice_call_metrics",
+          "database_performance",
+          "cache_hit_ratios",
+          "security_scan_status"
+        ],
+        "update_frequency_seconds": 15
+      }
+    }
+
+---
+# Auto-Scaling Validation Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: autoscaling-validation-config
+  namespace: gemini-salon
+data:
+  # Auto-Scaling Test Scenarios
+  AUTOSCALING_TEST_SCENARIOS: |
+    [
+      {
+        "name": "voice_gateway_scale_up",
+        "target_deployment": "voice-gateway-deployment",
+        "trigger_metric": "active_voice_calls_per_pod",
+        "trigger_value": 35,
+        "expected_scaling_direction": "up",
+        "expected_replica_increase": 3,
+        "max_scaling_time_seconds": 120
+      },
+      {
+        "name": "voice_gateway_scale_down",
+        "target_deployment": "voice-gateway-deployment", 
+        "trigger_metric": "active_voice_calls_per_pod",
+        "trigger_value": 5,
+        "expected_scaling_direction": "down",
+        "expected_replica_decrease": 2,
+        "max_scaling_time_seconds": 300
+      },
+      {
+        "name": "response_time_triggered_scaling",
+        "target_deployment": "voice-gateway-deployment",
+        "trigger_metric": "response_time_95th_percentile_ms",
+        "trigger_value": 1600,
+        "expected_scaling_direction": "up",
+        "max_scaling_time_seconds": 150
+      }
+    ]
+  
+  # Custom Metrics Validation
+  CUSTOM_METRICS_VALIDATION: |
+    {
+      "voice_metrics": [
+        "active_voice_calls_per_pod",
+        "websocket_connections_per_pod", 
+        "voice_processing_queue_depth",
+        "response_time_95th_percentile_ms",
+        "voice_quality_mos_score"
+      ],
+      "business_metrics": [
+        "enterprise_customer_load",
+        "monthly_recurring_revenue",
+        "voice_agent_cost_savings",
+        "customer_satisfaction_score"
+      ],
+      "infrastructure_metrics": [
+        "cpu_utilization_percent",
+        "memory_utilization_percent",
+        "network_throughput_mbps",
+        "storage_utilization_percent"
+      ]
+    }
+
+---
+# Business Intelligence Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: business-intelligence-config
+  namespace: gemini-salon
+data:
+  # Business Metrics Calculations
+  BUSINESS_METRICS_FORMULAS: |
+    {
+      "monthly_recurring_revenue": {
+        "formula": "SUM(subscription_amount) WHERE active = true AND billing_cycle = 'monthly'",
+        "update_frequency_minutes": 5,
+        "accuracy_threshold": 99.9
+      },
+      "voice_agent_roi": {
+        "formula": "(receptionist_cost_avoided - platform_cost) / platform_cost * 100",
+        "baseline_receptionist_cost": 1200,
+        "platform_cost": 299.99,
+        "expected_roi_percentage": 300
+      },
+      "customer_lifetime_value": {
+        "formula": "AVG(monthly_revenue * retention_months) BY customer_segment",
+        "segments": ["high_value_loyalist", "occasional_explorer", "new_prospect"],
+        "update_frequency_hours": 24
+      },
+      "uptime_sla_calculation": {
+        "formula": "(total_time - downtime) / total_time * 100",
+        "measurement_window_hours": 24,
+        "target_uptime": 99.5,
+        "update_frequency_minutes": 1
+      }
+    }
+  
+  # Executive Dashboard Requirements
+  EXECUTIVE_DASHBOARD_REQUIREMENTS: |
+    {
+      "key_metrics": [
+        {
+          "metric": "monthly_recurring_revenue", 
+          "display_format": "currency_eur",
+          "trend_analysis": true,
+          "target_value": 50000
+        },
+        {
+          "metric": "enterprise_tier_penetration",
+          "display_format": "percentage",
+          "trend_analysis": true,
+          "target_value": 30
+        },
+        {
+          "metric": "voice_agent_cost_savings",
+          "display_format": "currency_eur",
+          "trend_analysis": true,
+          "roi_calculation": true
+        },
+        {
+          "metric": "customer_satisfaction_nps",
+          "display_format": "score",
+          "trend_analysis": true,
+          "target_value": 50
+        }
+      ],
+      "real_time_updates": true,
+      "alert_integration": true,
+      "export_capabilities": ["pdf", "excel", "api"]
+    }
+
+---
+# Alert Test Scenarios
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-test-scenarios
+  namespace: gemini-salon
+data:
+  # Critical Alert Scenarios
+  critical_alerts.json: |
+    [
+      {
+        "scenario": "service_down_alert",
+        "trigger": "Stop voice-gateway-deployment",
+        "expected_alert": "ServiceDown",
+        "expected_channels": ["slack", "pagerduty"],
+        "max_alert_time_seconds": 60,
+        "auto_recovery_test": true
+      },
+      {
+        "scenario": "high_error_rate_alert",
+        "trigger": "Inject 15% error rate into API responses", 
+        "expected_alert": "HighErrorRate",
+        "expected_channels": ["slack", "email"],
+        "max_alert_time_seconds": 300
+      },
+      {
+        "scenario": "response_time_degradation",
+        "trigger": "Add artificial 3s delay to voice responses",
+        "expected_alert": "ResponseTimeHigh", 
+        "expected_channels": ["slack"],
+        "max_alert_time_seconds": 300
+      }
+    ]
+  
+  # Business Alert Scenarios  
+  business_alerts.json: |
+    [
+      {
+        "scenario": "revenue_decline_alert",
+        "trigger": "Simulate 20% MRR drop",
+        "expected_alert": "RevenueDecline",
+        "expected_channels": ["email", "slack"],
+        "stakeholders": ["executives", "finance"]
+      },
+      {
+        "scenario": "customer_churn_spike",
+        "trigger": "Simulate increased churn rate",
+        "expected_alert": "CustomerChurnSpike",
+        "expected_channels": ["slack"],
+        "auto_mitigation": true
+      }
+    ]
+
+---
+# Storage for Monitoring Test Results
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: monitoring-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: autoscaling-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 3Gi
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bi-test-results-pvc
+  namespace: gemini-salon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-ssd
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# RBAC for Monitoring Validation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitoring-validation-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: monitoring-validation
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-validation-cluster-role
+rules:
+# Allow reading all resources for monitoring validation
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "nodes"]
+  verbs: ["get", "list", "watch"]
+# Allow reading deployments and auto-scaling resources
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+# Allow reading metrics
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+# Allow reading custom metrics
+- apiGroups: ["custom.metrics.k8s.io"]
+  resources: ["*"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: monitoring-validation-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: monitoring-validation-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: monitoring-validation-service-account
+  namespace: gemini-salon

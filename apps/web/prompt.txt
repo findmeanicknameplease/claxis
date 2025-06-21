@@ -1,0 +1,20 @@
+I need a second opinion on this n8n deployment architecture. The first analysis validated the n8n-first approach but I want to dive deeper into the production deployment concerns.
+
+**Current Situation:**
+- User has https://clax-nrig.onrender.com ready for deployment
+- n8n server running locally on Docker "waiting to be attached a file"
+- Complete WhatsApp integration with webhook routes and custom n8n nodes
+- Targeting EU production deployment with 99.5% uptime
+
+**Key Technical Questions:**
+1. **Dockerfile Strategy**: Is building a custom n8n image with embedded nodes the right approach, or should we use n8n's npm package installation method?
+
+2. **State Management**: How should we handle n8n's workflow state and execution data? Persistent disk vs PostgreSQL database?
+
+3. **Service Communication**: What's the optimal way to handle Next.js → n8n communication on Render? HTTP calls vs internal networking?
+
+4. **Scaling Considerations**: How does this architecture scale when we hit 100+ salons with high message volume?
+
+5. **Alternative Approaches**: Are there any other architectural patterns we should consider (e.g., n8n as a library vs service, event-driven architecture)?
+
+Please analyze these concerns and provide a technical recommendation for production deployment.

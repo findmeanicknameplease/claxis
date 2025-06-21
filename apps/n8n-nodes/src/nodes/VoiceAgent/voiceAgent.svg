@@ -1,0 +1,24 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="32" cy="32" r="30" fill="#2563eb" opacity="0.1" stroke="#2563eb" stroke-width="2"/>
+  
+  <!-- Phone Icon -->
+  <path d="M20 22c0-1.1.9-2 2-2h4l2 5-2.5 1.5c0 0 1.5 3 4 5.5s5.5 4 5.5 4L37 34l5 2v4c0 1.1-.9 2-2 2-11 0-20-9-20-20z" 
+        fill="#2563eb" stroke="#1d4ed8" stroke-width="1"/>
+  
+  <!-- Voice Waves -->
+  <path d="M44 28c0-2.2-1.8-4-4-4v2c1.1 0 2 .9 2 2s-.9 2-2 2v2c2.2 0 4-1.8 4-4z" 
+        fill="#059669" opacity="0.8"/>
+  <path d="M48 28c0-4.4-3.6-8-8-8v2c3.3 0 6 2.7 6 6s-2.7 6-6 6v2c4.4 0 8-3.6 8-8z" 
+        fill="#059669" opacity="0.6"/>
+  <path d="M52 28c0-6.6-5.4-12-12-12v2c5.5 0 10 4.5 10 10s-4.5 10-10 10v2c6.6 0 12-5.4 12-12z" 
+        fill="#059669" opacity="0.4"/>
+  
+  <!-- AI Brain Icon -->
+  <circle cx="32" cy="45" r="3" fill="#7c3aed" opacity="0.8"/>
+  <path d="M29 45h6M32 42v6" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <!-- Premium Star -->
+  <path d="M52 12l2 4 4 1-3 3 1 4-4-2-4 2 1-4-3-3 4-1z" 
+        fill="#f59e0b" stroke="#d97706" stroke-width="0.5"/>
+</svg>

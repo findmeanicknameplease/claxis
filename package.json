@@ -1,0 +1,38 @@
+{
+  "name": "gemini-salon-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "n8n-native SaaS platform for European beauty salon automation",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:watch": "turbo test:watch",
+    "test:coverage": "turbo test:coverage",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "clean": "turbo clean && rm -rf node_modules"
+  },
+  "keywords": [
+    "n8n",
+    "whatsapp",
+    "instagram",
+    "salon",
+    "automation",
+    "eu",
+    "gdpr"
+  ],
+  "author": "Gemini Salon AI Team",
+  "license": "PROPRIETARY",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

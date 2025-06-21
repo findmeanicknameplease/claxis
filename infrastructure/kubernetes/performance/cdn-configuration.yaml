@@ -1,0 +1,744 @@
+# CDN and Performance Optimization Infrastructure
+# Premium performance for €299.99/month Enterprise tier
+
+---
+# CDN Configuration Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cdn-config-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: cdn-config
+    tier: performance
+    version: "1.0.0"
+  annotations:
+    description: "CDN configuration and cache management service"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: cdn-config
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: cdn-config
+        tier: performance
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1009
+        runAsGroup: 1009
+        fsGroup: 1009
+      
+      containers:
+      - name: cdn-config
+        image: gemini-salon/cdn-config:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: CDN_PROVIDER
+          value: "cloudflare"  # Premium CDN provider
+        - name: CACHE_PURGE_ENABLED
+          value: "true"
+        - name: EDGE_LOCATION_OPTIMIZATION
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: cdn-performance-config
+        
+        env:
+        - name: CDN_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: CDN_API_KEY
+        - name: CDN_ZONE_ID
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: CDN_ZONE_ID
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Advanced Redis Cache Cluster
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: redis-cluster
+    tier: performance
+  annotations:
+    description: "High-performance Redis cluster for premium caching"
+spec:
+  serviceName: redis-cluster-service
+  replicas: 3  # 3-node cluster for high availability
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: redis-cluster
+        tier: performance
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9121"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: component
+                operator: In
+                values:
+                - redis-cluster
+            topologyKey: kubernetes.io/hostname
+      
+      containers:
+      - name: redis
+        image: redis:7.2.0-alpine
+        imagePullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: 2000m
+            memory: 8Gi  # Premium memory allocation
+        
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: REDIS_PASSWORD
+        
+        ports:
+        - name: redis
+          containerPort: 6379
+        - name: cluster
+          containerPort: 16379
+        
+        command:
+        - redis-server
+        - --cluster-enabled
+        - "yes"
+        - --cluster-config-file
+        - nodes.conf
+        - --cluster-node-timeout
+        - "5000"
+        - --appendonly
+        - "yes"
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        - --maxmemory
+        - 6gb
+        - --maxmemory-policy
+        - allkeys-lru
+        - --save
+        - 900 1
+        - --save
+        - 300 10
+        - --save
+        - 60 10000
+        - --tcp-keepalive
+        - "60"
+        - --timeout
+        - "0"
+        
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      
+      # Redis Exporter sidecar
+      - name: redis-exporter
+        image: oliver006/redis_exporter:v1.55.0
+        imagePullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        
+        env:
+        - name: REDIS_ADDR
+          value: "localhost:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: REDIS_PASSWORD
+        
+        ports:
+        - name: metrics
+          containerPort: 9121
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+  
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+      labels:
+        app: gemini-salon
+        component: redis-cluster
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: premium-ssd
+      resources:
+        requests:
+          storage: 50Gi
+
+---
+# Performance Monitoring Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: performance-monitor
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: performance-monitor
+    tier: performance
+    version: "1.0.0"
+  annotations:
+    description: "Real-time performance monitoring and optimization"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: performance-monitor
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: performance-monitor
+        tier: performance
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1010
+        runAsGroup: 1010
+        fsGroup: 1010
+      
+      containers:
+      - name: performance-monitor
+        image: gemini-salon/performance-monitor:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: PERFORMANCE_SLA_TARGET
+          value: "2000"  # 2 seconds response time target
+        - name: MONITORING_INTERVAL
+          value: "5000"  # 5 seconds
+        - name: OPTIMIZATION_ENABLED
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: performance-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Database Connection Pooler
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-connection-pooler
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: db-pooler
+    tier: performance
+    version: "1.0.0"
+  annotations:
+    description: "High-performance database connection pooling"
+spec:
+  replicas: 3  # Multiple poolers for load distribution
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: db-pooler
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: db-pooler
+        tier: performance
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gemini-salon-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      
+      containers:
+      - name: pgbouncer
+        image: pgbouncer/pgbouncer:1.21.0
+        imagePullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        env:
+        - name: DATABASES_HOST
+          value: "supabase-host"
+        - name: DATABASES_PORT
+          value: "5432"
+        - name: DATABASES_USER
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DB_USER
+        - name: DATABASES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DB_PASSWORD
+        - name: POOL_MODE
+          value: "transaction"  # Optimal for high concurrency
+        - name: MAX_CLIENT_CONN
+          value: "1000"
+        - name: DEFAULT_POOL_SIZE
+          value: "50"
+        - name: MIN_POOL_SIZE
+          value: "10"
+        - name: RESERVE_POOL_SIZE
+          value: "20"
+        - name: SERVER_LIFETIME
+          value: "3600"
+        - name: SERVER_IDLE_TIMEOUT
+          value: "600"
+        
+        ports:
+        - name: postgres
+          containerPort: 5432
+        - name: admin
+          containerPort: 6543
+        
+        livenessProbe:
+          tcpSocket:
+            port: postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          tcpSocket:
+            port: postgres
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      # PgBouncer Exporter for metrics
+      - name: pgbouncer-exporter
+        image: prometheuscommunity/pgbouncer-exporter:v0.7.0
+        imagePullPolicy: IfNotPresent
+        
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        
+        env:
+        - name: PGBOUNCER_EXPORTER_HOST
+          value: "localhost"
+        - name: PGBOUNCER_EXPORTER_PORT
+          value: "6543"
+        
+        ports:
+        - name: metrics
+          containerPort: 9090
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Services for Performance Components
+apiVersion: v1
+kind: Service
+metadata:
+  name: cdn-config-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: cdn-config
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: cdn-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cluster-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: redis-cluster
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9121"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service for StatefulSet
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+  - name: cluster
+    port: 16379
+    targetPort: 16379
+  - name: metrics
+    port: 9121
+    targetPort: 9121
+  selector:
+    app: gemini-salon
+    component: redis-cluster
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: performance-monitor-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: performance-monitor
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: performance-monitor
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-pooler-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: db-pooler
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+  - name: admin
+    port: 6543
+    targetPort: 6543
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  selector:
+    app: gemini-salon
+    component: db-pooler
+
+---
+# CDN and Performance Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cdn-performance-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: performance
+data:
+  # CDN Configuration
+  CDN_ENABLED: "true"
+  CDN_PROVIDER: "cloudflare"
+  CDN_ZONES: "eu-central-1,eu-west-1,eu-north-1"
+  
+  # Cache Configuration
+  CACHE_TTL_STATIC: "31536000"     # 1 year for static assets
+  CACHE_TTL_API: "300"             # 5 minutes for API responses
+  CACHE_TTL_DYNAMIC: "60"          # 1 minute for dynamic content
+  CACHE_TTL_VOICE: "0"             # No cache for real-time voice
+  
+  # Edge Optimization
+  EDGE_COMPRESSION_ENABLED: "true"
+  EDGE_MINIFICATION_ENABLED: "true"
+  EDGE_HTTP2_ENABLED: "true"
+  EDGE_BROTLI_ENABLED: "true"
+  
+  # Geographic Optimization
+  EU_EDGE_LOCATIONS: "Frankfurt,Amsterdam,London,Paris,Stockholm"
+  LATENCY_OPTIMIZATION: "true"
+  TRAFFIC_ROUTING: "performance"
+  
+  # Cache Purging
+  AUTO_PURGE_ENABLED: "true"
+  PURGE_ON_DEPLOY: "true"
+  SELECTIVE_PURGE: "true"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: performance-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: performance
+data:
+  # Performance Targets (Enterprise SLA)
+  RESPONSE_TIME_TARGET_MS: "2000"
+  UPTIME_TARGET_PERCENT: "99.5"
+  THROUGHPUT_TARGET_RPS: "1000"
+  CONCURRENT_USERS_TARGET: "10000"
+  
+  # Optimization Settings
+  CONNECTION_POOL_SIZE: "50"
+  CONNECTION_POOL_MIN: "10"
+  CONNECTION_TIMEOUT_MS: "30000"
+  QUERY_TIMEOUT_MS: "10000"
+  
+  # Caching Strategy
+  CACHE_STRATEGY: "multi-layer"
+  L1_CACHE_SIZE_MB: "512"    # Application cache
+  L2_CACHE_SIZE_GB: "8"      # Redis cache
+  L3_CACHE_CDN: "true"       # CDN cache
+  
+  # Auto-scaling Configuration
+  AUTOSCALE_ENABLED: "true"
+  SCALE_UP_THRESHOLD: "70"   # CPU percentage
+  SCALE_DOWN_THRESHOLD: "30"
+  SCALE_UP_STABILIZATION: "60s"
+  SCALE_DOWN_STABILIZATION: "300s"
+  
+  # Resource Optimization
+  CPU_OPTIMIZATION: "true"
+  MEMORY_OPTIMIZATION: "true"
+  NETWORK_OPTIMIZATION: "true"
+  DISK_IO_OPTIMIZATION: "true"
+  
+  # Monitoring and Alerting
+  PERFORMANCE_MONITORING_ENABLED: "true"
+  REAL_TIME_ALERTS: "true"
+  PERFORMANCE_DEGRADATION_ALERT: "true"
+  CAPACITY_PLANNING_ENABLED: "true"
+  
+  # Premium Features
+  PREMIUM_BANDWIDTH_ALLOCATION: "true"
+  PRIORITY_TRAFFIC_ROUTING: "true"
+  ENTERPRISE_SUPPORT_ENABLED: "true"
+  ADVANCED_ANALYTICS: "true"

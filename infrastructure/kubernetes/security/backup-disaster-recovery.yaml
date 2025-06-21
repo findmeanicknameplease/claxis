@@ -1,0 +1,661 @@
+# Backup and Disaster Recovery Infrastructure
+# Enterprise-grade data protection with GDPR compliance
+
+---
+# Backup Service - Automated Database and Volume Backups
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backup-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-service
+    tier: disaster-recovery
+    version: "1.0.0"
+  annotations:
+    description: "Enterprise backup service with encryption and GDPR compliance"
+spec:
+  replicas: 1  # Single instance for backup coordination
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: backup-service
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: backup-service
+        tier: disaster-recovery
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: backup-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1004
+        runAsGroup: 1004
+        fsGroup: 1004
+      
+      containers:
+      - name: backup-service
+        image: gemini-salon/backup-service:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 4Gi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: BACKUP_SCHEDULE_FULL
+          value: "0 1 * * 0"    # Weekly full backup (Sunday 1 AM)
+        - name: BACKUP_SCHEDULE_INCREMENTAL
+          value: "0 2 * * 1-6"  # Daily incremental (Mon-Sat 2 AM)
+        - name: BACKUP_RETENTION_FULL
+          value: "12"           # Keep 12 full backups (3 months)
+        - name: BACKUP_RETENTION_INCREMENTAL
+          value: "30"           # Keep 30 incremental backups
+        - name: ENCRYPTION_ENABLED
+          value: "true"
+        - name: COMPRESSION_ENABLED
+          value: "true"
+        - name: GDPR_COMPLIANT_BACKUP
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: backup-config
+        
+        env:
+        # Database credentials for backup
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: BACKUP_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: BACKUP_ENCRYPTION_KEY
+        # S3 credentials for offsite backup
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: S3_ACCESS_KEY
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: S3_SECRET_KEY
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 60
+          periodSeconds: 60
+          timeoutSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /backup-storage
+        - name: temp-backup
+          mountPath: /tmp/backup
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: backup-pvc
+      - name: temp-backup
+        emptyDir:
+          sizeLimit: 10Gi
+      
+      terminationGracePeriodSeconds: 300  # Allow long-running backups to complete
+
+---
+# Point-in-Time Recovery Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pitr-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: pitr-service
+    tier: disaster-recovery
+    version: "1.0.0"
+  annotations:
+    description: "Point-in-Time Recovery service for enterprise data restoration"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: pitr-service
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: pitr-service
+        tier: disaster-recovery
+        version: "1.0.0"
+    spec:
+      serviceAccountName: backup-service-account
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1005
+        runAsGroup: 1005
+        fsGroup: 1005
+      
+      containers:
+      - name: pitr-service
+        image: gemini-salon/pitr-service:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 8Gi  # Large memory for restoration operations
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: RECOVERY_VALIDATION_ENABLED
+          value: "true"
+        - name: AUDIT_RECOVERY_OPERATIONS
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: backup-config
+        
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: DATABASE_URL
+        - name: BACKUP_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: BACKUP_ENCRYPTION_KEY
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: S3_ACCESS_KEY
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: S3_SECRET_KEY
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: health
+          containerPort: 8081
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 60
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        
+        volumeMounts:
+        - name: backup-storage
+          mountPath: /backup-storage
+          readOnly: true
+        - name: temp-restore
+          mountPath: /tmp/restore
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: backup-storage
+        persistentVolumeClaim:
+          claimName: backup-pvc
+      - name: temp-restore
+        emptyDir:
+          sizeLimit: 20Gi
+      
+      terminationGracePeriodSeconds: 600  # Allow restoration operations to complete
+
+---
+# Backup Monitoring and Alerting
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backup-monitor
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-monitor
+    tier: disaster-recovery
+    version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gemini-salon
+      component: backup-monitor
+  template:
+    metadata:
+      labels:
+        app: gemini-salon
+        component: backup-monitor
+        tier: disaster-recovery
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: backup-service-account
+      
+      containers:
+      - name: backup-monitor
+        image: gemini-salon/backup-monitor:1.0.0
+        imagePullPolicy: Always
+        
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 512Mi
+        
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: CHECK_INTERVAL
+          value: "300000"  # 5 minutes
+        - name: ALERT_ON_FAILURE
+          value: "true"
+        - name: ALERT_ON_MISSING_BACKUP
+          value: "true"
+        
+        envFrom:
+        - configMapRef:
+            name: backup-config
+        
+        env:
+        - name: ALERTMANAGER_WEBHOOK
+          valueFrom:
+            secretKeyRef:
+              name: gemini-salon-secrets
+              key: ALERTMANAGER_SLACK_WEBHOOK
+        
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+
+---
+# Services for Disaster Recovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: backup-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-service
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: backup-service
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pitr-service
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: pitr-service
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: health
+    port: 8081
+    targetPort: 8081
+  selector:
+    app: gemini-salon
+    component: pitr-service
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backup-monitor
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-monitor
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  selector:
+    app: gemini-salon
+    component: backup-monitor
+
+---
+# Backup Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-service
+data:
+  # Backup Strategy
+  BACKUP_STRATEGY: "3-2-1"  # 3 copies, 2 different media, 1 offsite
+  BACKUP_TYPE_FULL: "weekly"
+  BACKUP_TYPE_INCREMENTAL: "daily"
+  BACKUP_TYPE_DIFFERENTIAL: "disabled"
+  
+  # Storage Configuration
+  LOCAL_BACKUP_PATH: "/backup-storage"
+  TEMP_BACKUP_PATH: "/tmp/backup"
+  S3_BUCKET: "gemini-salon-backups-eu"
+  S3_REGION: "eu-central-1"
+  S3_STORAGE_CLASS: "STANDARD_IA"  # Infrequent access for cost optimization
+  
+  # Encryption and Security
+  ENCRYPTION_ALGORITHM: "AES-256-GCM"
+  COMPRESSION_ALGORITHM: "gzip"
+  INTEGRITY_CHECK_ENABLED: "true"
+  CHECKSUM_ALGORITHM: "SHA-256"
+  
+  # GDPR Compliance
+  GDPR_COMPLIANT_ENCRYPTION: "true"
+  GDPR_DATA_CLASSIFICATION: "true"
+  GDPR_AUDIT_BACKUP_ACCESS: "true"
+  GDPR_RIGHT_TO_ERASURE_SUPPORT: "true"
+  
+  # Retention Policies
+  RETENTION_POLICY_VOICE_DATA: "30d"     # Voice recordings - short retention
+  RETENTION_POLICY_BOOKING_DATA: "365d"  # Booking data - 1 year
+  RETENTION_POLICY_FINANCIAL_DATA: "3650d"  # Financial data - 10 years
+  RETENTION_POLICY_AUDIT_LOGS: "2555d"   # Audit logs - 7 years
+  
+  # Recovery Testing
+  RECOVERY_TEST_ENABLED: "true"
+  RECOVERY_TEST_SCHEDULE: "0 4 * * 0"  # Weekly recovery test
+  RECOVERY_VALIDATION_PERCENTAGE: "10"  # Test 10% of backups
+  
+  # Monitoring and Alerting
+  BACKUP_SUCCESS_NOTIFICATION: "true"
+  BACKUP_FAILURE_ALERT: "true"
+  BACKUP_SIZE_MONITORING: "true"
+  BACKUP_TIME_MONITORING: "true"
+  
+  # Performance Optimization
+  PARALLEL_BACKUP_STREAMS: "4"
+  BACKUP_COMPRESSION_LEVEL: "6"  # Balance between speed and compression
+  NETWORK_BANDWIDTH_LIMIT: "100Mbps"  # Limit backup bandwidth
+  
+  # Multi-Region Configuration
+  PRIMARY_REGION: "eu-central-1"
+  BACKUP_REGIONS: "eu-west-1,eu-north-1"  # Geographic distribution
+  CROSS_REGION_REPLICATION: "true"
+
+---
+# Disaster Recovery CronJobs
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: full-backup-job
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-cronjob
+spec:
+  schedule: "0 1 * * 0"  # Weekly on Sunday at 1 AM
+  timeZone: "Europe/Berlin"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 21600  # 6 hours timeout
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: backup-service-account
+          restartPolicy: OnFailure
+          containers:
+          - name: full-backup
+            image: gemini-salon/backup-service:1.0.0
+            command: ["/app/scripts/full-backup.sh"]
+            envFrom:
+            - configMapRef:
+                name: backup-config
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: gemini-salon-secrets
+                  key: DATABASE_URL
+            - name: BACKUP_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gemini-salon-secrets
+                  key: BACKUP_ENCRYPTION_KEY
+            resources:
+              requests:
+                cpu: 500m
+                memory: 2Gi
+              limits:
+                cpu: 2000m
+                memory: 8Gi
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup-storage
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: incremental-backup-job
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-cronjob
+spec:
+  schedule: "0 2 * * 1-6"  # Daily Mon-Sat at 2 AM
+  timeZone: "Europe/Berlin"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200  # 2 hours timeout
+      template:
+        spec:
+          serviceAccountName: backup-service-account
+          restartPolicy: OnFailure
+          containers:
+          - name: incremental-backup
+            image: gemini-salon/backup-service:1.0.0
+            command: ["/app/scripts/incremental-backup.sh"]
+            envFrom:
+            - configMapRef:
+                name: backup-config
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: gemini-salon-secrets
+                  key: DATABASE_URL
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                cpu: 1000m
+                memory: 4Gi
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backup-storage
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+
+---
+# RBAC for Backup Services
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-service-account
+  namespace: gemini-salon
+  labels:
+    app: gemini-salon
+    component: backup-service
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gemini-salon
+  name: backup-service-role
+rules:
+# Allow reading all resources for backup
+- apiGroups: [""]
+  resources: ["secrets", "configmaps", "persistentvolumeclaims", "pods"]
+  verbs: ["get", "list"]
+# Allow creating backup jobs
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "create", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-service-role-binding
+  namespace: gemini-salon
+subjects:
+- kind: ServiceAccount
+  name: backup-service-account
+  namespace: gemini-salon
+roleRef:
+  kind: Role
+  name: backup-service-role
+  apiGroup: rbac.authorization.k8s.io

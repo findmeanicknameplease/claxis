@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gemini-salon
+  labels:
+    name: gemini-salon
+    tier: production
+    region: eu-central-1
+    data-classification: personal-data
+    gdpr-compliant: "true"
+    retention-policy: "365d"
+    backup-required: "true"
+  annotations:
+    description: "Gemini Salon AI - Premium Voice-First SaaS Platform"
+    contact: "devops@geminisalon.ai"
+    cost-center: "product-engineering"
+    compliance.gdpr/data-controller: "Gemini Salon AI GmbH"
+    compliance.gdpr/data-processor: "Frankfurt, Germany"
+    compliance.gdpr/retention-period: "365 days"
+    
+---
+# Resource Quota for Enterprise Tier
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gemini-salon-quota
+  namespace: gemini-salon
+spec:
+  hard:
+    # Compute Resources
+    requests.cpu: "8000m"      # 8 CPU cores baseline
+    requests.memory: "16Gi"    # 16GB RAM baseline  
+    limits.cpu: "20000m"       # 20 CPU cores burst
+    limits.memory: "40Gi"      # 40GB RAM burst
+    
+    # Storage Resources
+    requests.storage: "100Gi"  # 100GB storage
+    persistentvolumeclaims: "10"
+    
+    # Network Resources
+    services: "20"
+    services.loadbalancers: "5"
+    services.nodeports: "10"
+    
+    # Pods and Containers
+    pods: "50"
+    count/deployments.apps: "20"
+    count/replicasets.apps: "50"
+    count/configmaps: "20"
+    count/secrets: "20"
+
+---
+# Limit Range for Premium Performance
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: gemini-salon-limits
+  namespace: gemini-salon
+spec:
+  limits:
+  # Container limits
+  - type: Container
+    default:
+      cpu: "1000m"
+      memory: "2Gi"
+    defaultRequest:
+      cpu: "100m" 
+      memory: "256Mi"
+    min:
+      cpu: "50m"
+      memory: "128Mi"
+    max:
+      cpu: "4000m"
+      memory: "8Gi"
+      
+  # Pod limits
+  - type: Pod
+    max:
+      cpu: "8000m"
+      memory: "16Gi"
+      
+  # PVC limits
+  - type: PersistentVolumeClaim
+    min:
+      storage: "1Gi"
+    max:
+      storage: "50Gi"
